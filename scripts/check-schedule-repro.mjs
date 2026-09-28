@@ -29,6 +29,7 @@ const download = await (await get(query('/download', file.path))).json();
 assert.ok(download.href, 'Яндекс.Диск не вернул ссылку на PDF');
 const bytes = Buffer.from(await (await get(download.href)).arrayBuffer());
 assert.ok(bytes.length > 10000 && bytes.subarray(0, 4).toString() === '%PDF', 'Получен не PDF');
+if (process.env.IMI_VERIFY_ARTIFACT) writeFileSync(process.env.IMI_VERIFY_ARTIFACT, bytes);
 
 const dir = mkdtempSync(join(tmpdir(), 'imi-schedule-'));
 try {
