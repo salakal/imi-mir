@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitLesson } from '../lib/pdf-data.ts';
+import { rowBoundary, splitLesson } from '../lib/pdf-data.ts';
 import { parseSessionPage } from '../lib/sessions.ts';
 
 test('аудитория перед дисциплиной не становится предметом или именем преподавателя', () => {
@@ -15,6 +15,34 @@ test('спортивный объект и адрес — это место па
     subject: 'Физическая культура', teacher: 'Рудакова И.А',
     room: 'Агибалова 7А, стадион Локомотив баскетбольный зал', remote: false,
   });
+});
+
+test('кабинет и зелёная ячейка «Разговоры о важном» не означают дистант', () => {
+  assert.deepEqual(splitLesson('9.00 Разговоры о важном преп Степанова О.П ауд. 521'), {
+    subject: 'Разговоры о важном', teacher: 'Степанова О.П', room: '521', remote: false,
+  });
+  assert.equal(splitLesson('Физическая культура преп Радова Н.Н спорт зал')?.room, 'спорт зал');
+  assert.equal(splitLesson('Математика преп Акимова К.В дистанционно')?.remote, true);
+});
+
+test('разные аудитории и второй преподаватель указывают на склейку соседних пар', () => {
+  assert.equal(splitLesson('ауд 412 Индивидуальный проект преп Анохина С.А ауд 518'), null);
+  assert.equal(splitLesson('Физическая культура преп Радова Н.Н Криминалистика преп Безуглов А.А ауд 119'), null);
+  assert.equal(splitLesson('Общие компетенции профессионала Уголовный процесс ауд Ривкина А.И. преп Богомазова Е.В'), null);
+  assert.deepEqual(splitLesson('ауд 119 Основы безопасности и защиты Родины преп Павлов А.А'), {
+    subject: 'Основы безопасности и защиты Родины', teacher: 'Павлов А.А', room: '119', remote: false,
+  });
+});
+
+test('граница строки отделяет кабинет от следующего предмета на цветном фоне', () => {
+  // Horizontal rules in the official timetable separate adjacent slots even
+  // when the printed time labels are not centered inside those slots.
+  const color = (x, y) => {
+    if (Math.abs(y - 70.5) < 0.26 || Math.abs(y - 92.5) < 0.26) return [25, 25, 25];
+    return x > 200 ? [144, 204, 90] : [255, 255, 255];
+  };
+  assert.equal(rowBoundary(color, 100, 400, 55, 78), 70.5);
+  assert.equal(rowBoundary(color, 100, 400, 78, 103), 92.5);
 });
 
 test('семестры и три колонки объединённой таблицы различаются', () => {
