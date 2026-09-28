@@ -382,9 +382,9 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
       const previous = anchors[index - 1];
       const next = anchors[index + 1];
       const top = rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
-        ?? (previous ? (previous.y + anchors[index].y) / 2 : start);
+        ?? (previous ? anchors[index].y - 6.5 : start);
       const bottom = next
-        ? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? (anchors[index].y + next.y) / 2
+        ? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? next.y - 6.5
         : end - 1;
       if (gray(color(groupX - 16, anchors[index].y)) && gray(color(groupX + 16, anchors[index].y))) continue;
       // Header centers only approximate the actual column edges. Search a
