@@ -29,6 +29,7 @@ jobs:
         env:
           IMI_SITE_URL: http://127.0.0.1:3018
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - run: node scripts/check-mobile-ui.mjs
       - name: Check protected Preview URL
         run: node scripts/check-preview.mjs
         continue-on-error: true
@@ -38,5 +39,7 @@ jobs:
         if: always()
         with:
           name: official-timetable
-          path: ${{ runner.temp }}/official-schedule.pdf
+          path: |
+            ${{ runner.temp }}/official-schedule.pdf
+            ${{ runner.temp }}/mobile-*.png
           retention-days: 2
