@@ -305,7 +305,7 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
   return { subject, teacher: teacher || '—', room, remote: /(?:дистанционно|дистант|онлайн)/i.test(value) };
 }
 
-function parseCell(source: Text[], left: number, right: number, top: number, bottom: number): Omit<Pair, "time"> | null {
+function parseCell(source: Text[], left: number, right: number, top: number, bottom: number): (Omit<Pair, "time"> & { timeHint?: string }) | null {
   const strings = source.filter((t) => !t.rot && t.y > top + 1 && t.y < bottom - 0.2 &&
     t.x + t.width / 2 > left + 1 && t.x + t.width / 2 < right - 1)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
@@ -313,7 +313,8 @@ function parseCell(source: Text[], left: number, right: number, top: number, bot
   const lesson = splitLesson(value);
   if (!lesson && /преп\s*\.?/i.test(value))
     throw new Error(`Строки расписания смешаны: ${value.slice(0, 140)}`);
-  return lesson;
+  const start = value.match(/^(\d{1,2})\.(\d{2})\s+(?=[А-ЯЁ])/i);
+  return lesson && start ? { ...lesson, timeHint: `${start[1].padStart(2, '0')}:${start[2]}` } : lesson;
 }
 
 export async function parseSchedule(buffer: ArrayBuffer, group: string, sample?: (x: number, y: number) => number[]): Promise<Day[]> {
@@ -336,7 +337,7 @@ export async function parseSchedules(buffer: ArrayBuffer, groups: string[]): Pro
   return result;
 }
 
-function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string): Day[] {
+export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string): Day[] {
   const normalized = group.toLocaleUpperCase('ru');
   const headers = items.filter((t) => t.y < 82 && /^(?:К-[А-ЯЁ]+|БД|ЗУ|Юр)-\d/i.test(t.str))
     .sort((a, b) => a.x - b.x);
@@ -392,20 +393,22 @@ function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, 
       const middle = nearbyBoundary(color, groupX, top, bottom) !== null;
       const cells = middle ? [{ left: groupLeft, right: groupX }, { left: groupX, right: groupRight }] : [{ left, right }];
       const parts = cells.map(({ left, right }, part) => {
-        const parsed = parseCell(items, left, right, top, bottom);
-        if (!parsed) return null;
+        const cell = parseCell(items, left, right, top, bottom);
+        if (!cell) return null;
+        const { timeHint, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
           throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
-        return { ...parsed, time: pairTime(anchors[index], items, TIMES[index]),
+        return { ...parsed, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]),
           ...(middle ? { subgroup: (part === 0 ? "А" : "Б") as "А" | "Б" } : {}) };
       });
       const found = parts.filter((part) => part !== null);
       if (middle && found.length === 0) {
-        const whole = parseCell(items, left, right, top, bottom);
-        if (whole) {
+        const cell = parseCell(items, left, right, top, bottom);
+        if (cell) {
+          const { timeHint, ...whole } = cell;
           if (!whole.remote && whole.room === '—')
             throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
-          pairs.push({ ...whole, time: pairTime(anchors[index], items, TIMES[index]) });
+          pairs.push({ ...whole, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]) });
         }
       } else for (const part of found) pairs.push(part);
     }
