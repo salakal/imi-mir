@@ -1,8 +1,6 @@
 name: Verify published timetable
 
 on:
-  push:
-    branches: [preview/initial-source]
   pull_request:
     branches: [main]
 
