@@ -23,6 +23,9 @@ jobs:
       - run: node --experimental-strip-types scripts/check-schedule-repro.mjs
         env:
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - run: node scripts/check-preview.mjs
+        env:
+          IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
       - uses: actions/upload-artifact@v4
         if: always()
         with:
