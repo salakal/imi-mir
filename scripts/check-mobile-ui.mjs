@@ -31,6 +31,7 @@ try {
   }, 'Chrome');
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+  console.log('Chrome connected');
   let id = 0;
   const pending = new Map();
   socket.onmessage = ({ data }) => {
@@ -56,6 +57,7 @@ try {
   for (const [group, subject, room] of [
     ['К-ТЭ-19-1', 'Информатика', '412'], ['К-ИИ-19', 'Разговоры о важном', '521'],
   ]) {
+    console.log('Selecting', group);
     await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`college:${group}`)})`);
     await send('Page.reload', { ignoreCache: true });
     await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(group)})`), `группы ${group}`);
@@ -64,7 +66,10 @@ try {
     const monday = await until(() => evaluate(`(() => {
       const text = document.querySelector('.day-card')?.innerText;
       return text?.includes(${JSON.stringify(subject)}) && text?.includes(${JSON.stringify(room)}) ? text : null;
-    })()`), `пар ${group}`, 65000);
+    })()`), `пар ${group}`, 65000).catch(async (error) => {
+      console.log('UI state:', (await evaluate('document.body.innerText')).slice(0, 1400));
+      throw error;
+    });
     assert.ok(monday.includes(subject) && monday.includes(room));
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2'), `${group}: горизонтальная прокрутка на 390 px`);
     await evaluate('document.querySelector(".day-card").scrollIntoView()');
@@ -75,5 +80,6 @@ try {
 } finally {
   socket?.close();
   chrome.kill('SIGTERM');
-  rmSync(directory, { recursive: true, force: true });
+  try { rmSync(directory, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }); }
+  catch { /* Chrome can still be writing to its profile while shutting down. */ }
 }
