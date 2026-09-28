@@ -96,6 +96,12 @@ test('соседние К-ТЭ-19-1 и К-ИИ-19 сохраняют свои п
   assert.equal(ii[0].time, '09:00');
   assert.equal(ii[0].remote, false);
   assert.ok([...te, ...ii].every(({ teacher }) => !/ауд|каб/i.test(teacher)));
+  // PDF.js browser canvas can render a horizontal rule too faintly to sample;
+  // the fallback must still keep the room line inside its own time slot.
+  const faintRules = (x, y) => [70, 92, 114, 136].some((line) => Math.abs(y - line) < .25)
+    ? [255, 255, 255] : sample(x, y);
+  assert.deepEqual(scheduleFromPage(page, items, faintRules, 'К-ТЭ-19-1')[0].pairs
+    .map(({ subject, room }) => [subject, room]), left.map(([subject, , room]) => [subject, room]));
 });
 
 test('семестры и три колонки объединённой таблицы различаются', () => {
