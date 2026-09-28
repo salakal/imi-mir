@@ -15,7 +15,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.0'
-      - run: corepack enable && corepack pnpm install --frozen-lockfile
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+      - run: pnpm install --frozen-lockfile
       - run: sudo apt-get update -qq && sudo apt-get install -y poppler-utils
       - run: node --experimental-strip-types --test tests/pdf-parsers.test.mjs
       - run: node --experimental-strip-types scripts/check-schedule-repro.mjs
