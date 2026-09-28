@@ -23,7 +23,15 @@ jobs:
       - run: node --experimental-strip-types scripts/check-schedule-repro.mjs
         env:
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - run: pnpm exec next build
+      - run: pnpm exec next start --hostname 127.0.0.1 --port 3018 > /tmp/imi-next.log 2>&1 &
       - run: node scripts/check-preview.mjs
+        env:
+          IMI_SITE_URL: http://127.0.0.1:3018
+          IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - name: Check protected Preview URL
+        run: node scripts/check-preview.mjs
+        continue-on-error: true
         env:
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
       - uses: actions/upload-artifact@v4
