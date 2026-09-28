@@ -404,8 +404,13 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
         const cell = parseCell(items, left, right, top, bottom, extendLeft, extendRight);
         if (!cell) return null;
         const { timeHint, ...parsed } = cell;
-        if (!parsed.remote && parsed.room === '—')
+        if (!parsed.remote && parsed.room === '—') {
+          if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1')
+            console.warn('IMI PDF cell', JSON.stringify({ group, day, index, top, bottom, left, right, middle,
+              nearby: items.filter((t) => t.y > top - 4 && t.y < bottom + 4 &&
+                t.x > left - 20 && t.x < right + 20).map(({ str, x, y, width }) => ({ str, x, y, width })) }));
           throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
+        }
         return { ...parsed, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]),
           ...(middle ? { subgroup: (part === 0 ? "А" : "Б") as "А" | "Б" } : {}) };
       });
