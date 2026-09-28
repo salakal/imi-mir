@@ -280,6 +280,9 @@ export function rowBoundary(color: (x: number, y: number) => number[], left: num
 }
 
 export function splitLesson(value: string): Omit<Pair, "time"> | null {
+  // The PDF text layer occasionally paints the label twice without another
+  // lesson between them: "преп преп Фамилия".
+  value = value.replace(/преп(?:\s+преп)+(?=\s|$)/gi, 'преп');
   const separator = value.match(/преп\s*\.?\s*/i);
   if (!separator || separator.index === undefined) return null;
   // A second teacher marker indicates that two lessons have been joined.
@@ -305,9 +308,10 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
   return { subject, teacher: teacher || '—', room, remote: /(?:дистанционно|дистант|онлайн)/i.test(value) };
 }
 
-function parseCell(source: Text[], left: number, right: number, top: number, bottom: number): (Omit<Pair, "time"> & { timeHint?: string }) | null {
+function parseCell(source: Text[], left: number, right: number, top: number, bottom: number,
+  extendLeft = 0, extendRight = 0): (Omit<Pair, "time"> & { timeHint?: string }) | null {
   const strings = source.filter((t) => !t.rot && t.y > top + 1 && t.y < bottom - 0.2 &&
-    t.x + t.width / 2 > left + 1 && t.x + t.width / 2 < right - 1)
+    t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
   const lesson = splitLesson(value);
@@ -388,12 +392,16 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
       // rule (merged cells), keep the inferred edge: widening into the next
       // group silently steals its teacher, room and even a whole lesson.
       const radius = Math.min(35, (groupRight - groupLeft) * 0.35);
-      const left = nearbyBoundary(color, groupLeft, top, bottom, radius) ?? groupLeft;
-      const right = nearbyBoundary(color, groupRight, top, bottom, radius) ?? groupRight;
+      const leftRule = nearbyBoundary(color, groupLeft, top, bottom, radius);
+      const rightRule = nearbyBoundary(color, groupRight, top, bottom, radius);
+      const left = leftRule ?? groupLeft;
+      const right = rightRule ?? groupRight;
       const middle = nearbyBoundary(color, groupX, top, bottom) !== null;
-      const cells = middle ? [{ left: groupLeft, right: groupX }, { left: groupX, right: groupRight }] : [{ left, right }];
-      const parts = cells.map(({ left, right }, part) => {
-        const cell = parseCell(items, left, right, top, bottom);
+      const cells = middle ? [{ left: groupLeft, right: groupX, extendLeft: 0, extendRight: 0 },
+        { left: groupX, right: groupRight, extendLeft: 0, extendRight: 0 }] :
+        [{ left, right, extendLeft: leftRule === null ? 4 : 0, extendRight: rightRule === null ? 4 : 0 }];
+      const parts = cells.map(({ left, right, extendLeft, extendRight }, part) => {
+        const cell = parseCell(items, left, right, top, bottom, extendLeft, extendRight);
         if (!cell) return null;
         const { timeHint, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
@@ -403,7 +411,8 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
       });
       const found = parts.filter((part) => part !== null);
       if (middle && found.length === 0) {
-        const cell = parseCell(items, left, right, top, bottom);
+        const cell = parseCell(items, left, right, top, bottom,
+          leftRule === null ? 4 : 0, rightRule === null ? 4 : 0);
         if (cell) {
           const { timeHint, ...whole } = cell;
           if (!whole.remote && whole.room === '—')
