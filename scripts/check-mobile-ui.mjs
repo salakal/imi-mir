@@ -62,12 +62,22 @@ try {
     await send('Page.reload', { ignoreCache: true });
     await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(group)})`), `группы ${group}`);
     await until(() => evaluate(`Boolean([...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.includes('Расписание')))`), 'вкладки расписания');
-    await evaluate(`[...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.includes('Расписание')).click()`);
+    const position = await evaluate(`(() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.includes('Расписание'));
+      tab.scrollIntoView({block:'center'});
+      const rect = tab.getBoundingClientRect();
+      return {x:rect.left + rect.width/2, y:rect.top + rect.height/2};
+    })()`);
+    await send('Input.dispatchMouseEvent', { type:'mousePressed', x:position.x, y:position.y, button:'left', clickCount:1 });
+    await send('Input.dispatchMouseEvent', { type:'mouseReleased', x:position.x, y:position.y, button:'left', clickCount:1 });
+    console.log('Selected tab:', await evaluate(`[...document.querySelectorAll('[role="tab"]')].map(t => [t.textContent, t.getAttribute('aria-selected')])`));
     const monday = await until(() => evaluate(`(() => {
       const text = document.querySelector('.day-card')?.innerText;
       return text?.includes(${JSON.stringify(subject)}) && text?.includes(${JSON.stringify(room)}) ? text : null;
     })()`), `пар ${group}`, 65000).catch(async (error) => {
       console.log('UI state:', (await evaluate('document.body.innerText')).slice(0, 1400));
+      const screenshot = await send('Page.captureScreenshot', { format:'png', captureBeyondViewport:false });
+      writeFileSync(join(process.env.RUNNER_TEMP ?? tmpdir(), `mobile-failure-${group}.png`), Buffer.from(screenshot.data, 'base64'));
       throw error;
     });
     assert.ok(monday.includes(subject) && monday.includes(room));
