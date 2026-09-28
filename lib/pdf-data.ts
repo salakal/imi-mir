@@ -266,14 +266,16 @@ function nearbyBoundary(color: (x: number, y: number) => number[], desired: numb
 
 export function rowBoundary(color: (x: number, y: number) => number[], left: number, right: number, from: number, to: number) {
   const width = right - left;
-  const xs = [0.12, 0.32, 0.68, 0.88].map((fraction) => left + width * fraction);
+  // A true table rule crosses nearly the whole column. Four samples could
+  // mistake similarly aligned teacher text for a horizontal rule.
+  const xs = Array.from({ length: 11 }, (_, index) => left + width * (index + 1) / 12);
   const candidates: number[] = [];
   for (let y = from + 2; y < to - 2; y += 0.5) {
     const ruled = xs.filter((x) => {
       const current = color(x, y)[0];
-      return current < 100 && color(x, y - 2)[0] - current > 60 && color(x, y + 2)[0] - current > 60;
+      return current < 190 && color(x, y - 2)[0] - current > 25 && color(x, y + 2)[0] - current > 25;
     }).length;
-    if (ruled >= 3) candidates.push(y);
+    if (ruled >= 9) candidates.push(y);
   }
   // A time label is positioned a few points below the top border of its row.
   return candidates.sort((a, b) => Math.abs(a - (to - 5)) - Math.abs(b - (to - 5)))[0] ?? null;
