@@ -21,13 +21,15 @@ function query(endpoint, path) {
   url.searchParams.set('path', path);
   return url;
 }
-const listing = await (await get(query('', path))).json();
-const file = listing._embedded?.items?.find((entry) => entry.type === 'file' &&
-  entry.name.toLocaleUpperCase('ru').replace(/[^А-ЯЁ0-9]/g, '').includes('КРУКТЭКИИ'));
+const offline = process.argv[2] === '--pdf' ? process.argv[3] : null;
+const listing = offline ? null : await (await get(query('', path))).json();
+const file = offline ? { name: 'локальный официальный PDF' } :
+  listing._embedded?.items?.find((entry) => entry.type === 'file' &&
+    entry.name.toLocaleUpperCase('ru').replace(/[^А-ЯЁ0-9]/g, '').includes('КРУКТЭКИИ'));
 assert.ok(file, 'В папке нужной недели не найден общий PDF для К-ТЭ и К-ИИ');
-const download = await (await get(query('/download', file.path))).json();
-assert.ok(download.href, 'Яндекс.Диск не вернул ссылку на PDF');
-const bytes = Buffer.from(await (await get(download.href)).arrayBuffer());
+const download = offline ? null : await (await get(query('/download', file.path))).json();
+if (!offline) assert.ok(download.href, 'Яндекс.Диск не вернул ссылку на PDF');
+const bytes = offline ? readFileSync(offline) : Buffer.from(await (await get(download.href)).arrayBuffer());
 assert.ok(bytes.length > 10000 && bytes.subarray(0, 4).toString() === '%PDF', 'Получен не PDF');
 if (process.env.IMI_VERIFY_ARTIFACT) writeFileSync(process.env.IMI_VERIFY_ARTIFACT, bytes);
 
@@ -49,11 +51,22 @@ try {
     return [...ppm.subarray(offset + (py * width + px) * 3, offset + (py * width + px) * 3 + 3)];
   };
   const expected = {
+    'К-РУ-19': [
+      ['Обществознание', 'Царева', '408'],
+      ['Информатика', 'Анохина', '412'],
+      ['Индивидуальный проект', 'Анохина', '518'],
+    ],
     'К-ТЭ-19-1': [
       ['Информатика', 'Анохина', '412'],
       ['Индивидуальный проект', 'Анохина', '518'],
       ['Обществознание', 'Степанова', '516'],
       ['Физика', 'Зотова', '408'],
+    ],
+    'К-ТЭ-19-2': [
+      ['Разговоры о важном', 'Степанова', '521'],
+      ['Обществознание', 'Степанова', '516'],
+      ['Физика', 'Зотова', '408'],
+      ['Математика', 'Акимова', '411'],
     ],
     'К-ИИ-19': [
       ['Разговоры о важном', 'Степанова', '521'],
@@ -75,6 +88,10 @@ try {
       assert.ok(pair.remote || pair.room !== '—', `${group}: ${day.label}, ${pair.time}, кабинет пропал`);
       assert.doesNotMatch(`${pair.subject} ${pair.teacher}`, /(?:^|\s)(?:ауд|каб)\.?\s/i);
     }
+    if (group === 'К-РУ-19' || group === 'К-ТЭ-19-1')
+      assert.ok(days[4].pairs.some((pair) => pair.subject === 'Разговоры о важном' &&
+        pair.room === '521' && pair.time === '09:00' && !pair.remote),
+      `${group}: общая пятничная пара 9.00 отсутствует`);
     assert.equal(days[0].pairs[0].remote, false, `${group}: цветная ячейка ошибочно признана дистантом`);
     console.log(group, file.name, days.reduce((count, day) => count + day.pairs.length, 0), 'пар проверено');
   }
