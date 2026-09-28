@@ -36,6 +36,8 @@ try {
   const pending = new Map();
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
+    if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'warning')
+      console.log('Browser warning:', JSON.stringify(message.params.args.map((arg) => arg.value ?? arg.description)).slice(0, 2300));
     const promise = pending.get(message.id);
     if (promise) { pending.delete(message.id); message.error ? promise.reject(Error(message.error.message)) : promise.resolve(message.result); }
   };
