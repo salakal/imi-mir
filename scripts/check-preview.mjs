@@ -1,9 +1,9 @@
-// Smoke-test the public Vercel preview and its live timetable proxy.
+// Smoke-test a running build and its live timetable proxy.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
-const root = 'https://imi-mir-git-preview-initial-source-vadimkamatveev07-2378.vercel.app';
+const root = process.env.IMI_SITE_URL ?? 'https://imi-mir-git-preview-initial-source-vadimkamatveev07-2378.vercel.app';
 const source = readFileSync(process.env.IMI_VERIFY_ARTIFACT);
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 async function get(path) {
@@ -18,7 +18,9 @@ async function get(path) {
   }
   throw last;
 }
-const home = await (await get('/')).text();
+const homeResponse = await get('/');
+console.log('Site response:', homeResponse.status, homeResponse.url);
+const home = await homeResponse.text();
 assert.match(home, /IMI/, 'В Preview нет заголовка IMI');
 const manifest = await (await get('/api/manifest?group=college%3A%D0%9A-%D0%A2%D0%AD-19-1')).json();
 assert.ok(manifest.schedule?.path, 'Preview не находит расписание К-ТЭ-19-1');
