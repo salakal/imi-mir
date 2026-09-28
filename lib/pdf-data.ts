@@ -239,7 +239,9 @@ function pairTime(anchor: Text, items: Text[], fallback: string) {
     : null;
   const first = anchor.str.match(/^(\d{1,2})\.(\d{2})/);
   const parts = line ? line.slice(1, 5) : continuation && first ? [...first.slice(1), ...continuation.slice(1)] : null;
-  return parts ? `${parts[0].padStart(2, '0')}:${parts[1]}–${parts[2].padStart(2, '0')}:${parts[3]}` : fallback;
+  if (parts) return `${parts[0].padStart(2, '0')}:${parts[1]}–${parts[2].padStart(2, '0')}:${parts[3]}`;
+  // Some timetable rows give only a start time (for example 9.00).
+  return first ? `${first[1].padStart(2, '0')}:${first[2]}` : fallback;
 }
 
 function boundary(color: (x: number, y: number) => number[], x: number, top: number, bottom: number) {
@@ -254,31 +256,53 @@ function boundary(color: (x: number, y: number) => number[], x: number, top: num
   }
   return total > 2 && count / total > .6;
 }
-function nearbyBoundary(color: (x: number, y: number) => number[], desired: number, top: number, bottom: number) {
-  for (let offset = 0; offset <= 6; offset += 0.5) {
+function nearbyBoundary(color: (x: number, y: number) => number[], desired: number, top: number, bottom: number, radius = 6) {
+  for (let offset = 0; offset <= radius; offset += 0.5) {
     for (const x of offset ? [desired - offset, desired + offset] : [desired])
       if (boundary(color, x, top, bottom)) return x;
   }
   return null;
 }
 
+export function rowBoundary(color: (x: number, y: number) => number[], left: number, right: number, from: number, to: number) {
+  const width = right - left;
+  const xs = [0.12, 0.32, 0.68, 0.88].map((fraction) => left + width * fraction);
+  const candidates: number[] = [];
+  for (let y = from + 2; y < to - 2; y += 0.5) {
+    const ruled = xs.filter((x) => {
+      const current = color(x, y)[0];
+      return current < 100 && color(x, y - 2)[0] - current > 60 && color(x, y + 2)[0] - current > 60;
+    }).length;
+    if (ruled >= 3) candidates.push(y);
+  }
+  // A time label is positioned a few points below the top border of its row.
+  return candidates.sort((a, b) => Math.abs(a - (to - 5)) - Math.abs(b - (to - 5)))[0] ?? null;
+}
+
 export function splitLesson(value: string): Omit<Pair, "time"> | null {
   const separator = value.match(/преп\s*\.?\s*/i);
   if (!separator || separator.index === undefined) return null;
-  const subjectPart = value.slice(0, separator.index).replace(/^(?:(?:Подгруппа|п\/г)\s*[АБ12]\s*)+/i, '').trim();
+  // A second teacher marker indicates that two lessons have been joined.
+  if (/преп\s*\.?/i.test(value.slice(separator.index + separator[0].length))) return null;
+  const subjectPart = value.slice(0, separator.index)
+    .replace(/^(?:(?:Подгруппа|п\/г)\s*[АБ12]\s*)+/i, '')
+    .replace(/^\d{1,2}\.\d{2}\s+(?=[А-ЯЁ])/i, '').trim();
   const tail = value.slice(separator.index + separator[0].length).trim();
   // Rooms can appear before the subject, after it, or after the teacher.
   // A street address / stadium is a location, never a person's surname.
   const locationPattern = /(?:(?:г\.?\s*Самара\s*,?\s*)?(?:ул\.?\s*)?[А-ЯЁ][а-яё-]+\s+\d+[а-яёa-z]?\s*,?\s*(?:стадион|спорткомплекс|спортивный комплекс|спортзал|спортивный зал)[^,]*(?:,\s*[^,]+)?|(?:стадион|спорткомплекс|спортивный комплекс|баскетбольный зал|спортивный зал|спорт\s*зал)[^,]*(?:,\s*[^,]+)?)/i;
   const address = value.match(locationPattern)?.[0]?.trim();
-  const auditorium = value.match(/(?:ауд\.?|аудитория|каб\.?|кабинет)\s*№?\s*(\d+[а-яёa-z]?(?:[-/]\d+[а-яёa-z]?)?)/i)?.[1];
+  const roomPattern = /(?:аудитория|ауд\.?|кабинет|каб\.?)\s*№?\s*(\d+[а-яёa-z]?(?:[-/]\d+[а-яёa-z]?)?)/gi;
+  const rooms = [...value.matchAll(roomPattern)].map((match) => match[1]);
+  if (new Set(rooms.map((room) => room.toLocaleLowerCase('ru'))).size > 1) return null;
+  const auditorium = rooms[0];
   const room = address ?? auditorium ?? '—';
-  const stripLocation = (s: string) => s.replace(/(?:ауд\.?|аудитория|каб\.?|кабинет)\s*№?\s*\d+[а-яёa-z]?(?:[-/]\d+[а-яёa-z]?)?/gi, ' ')
+  const stripLocation = (s: string) => s.replace(roomPattern, ' ')
     .replace(locationPattern, ' ').replace(/дистанционно/gi, ' ').replace(/\s+/g, ' ').trim();
   const subject = stripLocation(subjectPart);
   const teacher = stripLocation(tail).replace(/^[,;–-]+|[,;–-]+$/g, '').trim();
-  if (!subject) return null;
-  return { subject, teacher: teacher || '—', room, remote: /дистанционно/i.test(value) };
+  if (!subject || /(?:^|\s)(?:ауд(?:итория)?|каб(?:инет)?)\.?(?:\s|$)/i.test(subject + ' ' + teacher)) return null;
+  return { subject, teacher: teacher || '—', room, remote: /(?:дистанционно|дистант|онлайн)/i.test(value) };
 }
 
 function parseCell(source: Text[], left: number, right: number, top: number, bottom: number): Omit<Pair, "time"> | null {
@@ -286,7 +310,10 @@ function parseCell(source: Text[], left: number, right: number, top: number, bot
     t.x + t.width / 2 > left + 1 && t.x + t.width / 2 < right - 1)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
-  return splitLesson(value);
+  const lesson = splitLesson(value);
+  if (!lesson && /преп\s*\.?/i.test(value))
+    throw new Error(`Строки расписания смешаны: ${value.slice(0, 140)}`);
+  return lesson;
 }
 
 export async function parseSchedule(buffer: ArrayBuffer, group: string, sample?: (x: number, y: number) => number[]): Promise<Day[]> {
@@ -342,30 +369,44 @@ function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, 
   for (let day = 0; day < 6; day++) {
     const start = ends[day], end = ends[day + 1];
     const anchors = items.filter((t) => t.x >= 15 && t.x < Math.min(...headers.map((h) => h.x)) - 12 && t.y > start && t.y < end &&
-      /^(?:8\.15|9\.55|11\.50|13\.30|15\.20|17\.00)/.test(t.str))
+      /^(?:8\.15|9\.00|9\.55|11\.50|13\.30|15\.20|17\.00)/.test(t.str))
       .sort((a, b) => a.y - b.y);
-    if (anchors.length < 4 || anchors.length > 6) throw new Error(`Не удалось разобрать часы: ${WEEKDAYS[day]}`);
+    if (anchors.length < 4 || anchors.length > 7) throw new Error(`Не удалось разобрать часы: ${WEEKDAYS[day]}`);
     const pairs: Pair[] = [];
     for (let index = 0; index < anchors.length; index++) {
-      const top = index === 0 ? start : (anchors[index - 1].y + anchors[index].y) / 2;
-      const bottom = index === anchors.length - 1 ? end - 1 : (anchors[index].y + anchors[index + 1].y) / 2;
+      const previous = anchors[index - 1];
+      const next = anchors[index + 1];
+      const top = rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
+        ?? (previous ? (previous.y + anchors[index].y) / 2 : start);
+      const bottom = next
+        ? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? (anchors[index].y + next.y) / 2
+        : end - 1;
       if (gray(color(groupX - 16, anchors[index].y)) && gray(color(groupX + 16, anchors[index].y))) continue;
-      const columnWidth = groupRight - groupLeft;
-      const left = nearbyBoundary(color, groupLeft, top, bottom) ?? Math.max(32, groupLeft - columnWidth);
-      const right = nearbyBoundary(color, groupRight, top, bottom) ?? Math.min(page.view[2] - 8, groupRight + columnWidth);
+      // Header centers only approximate the actual column edges. Search a
+      // fraction of the column width for the printed rule. When a row has no
+      // rule (merged cells), keep the inferred edge: widening into the next
+      // group silently steals its teacher, room and even a whole lesson.
+      const radius = Math.min(35, (groupRight - groupLeft) * 0.35);
+      const left = nearbyBoundary(color, groupLeft, top, bottom, radius) ?? groupLeft;
+      const right = nearbyBoundary(color, groupRight, top, bottom, radius) ?? groupRight;
       const middle = nearbyBoundary(color, groupX, top, bottom) !== null;
       const cells = middle ? [{ left: groupLeft, right: groupX }, { left: groupX, right: groupRight }] : [{ left, right }];
       const parts = cells.map(({ left, right }, part) => {
         const parsed = parseCell(items, left, right, top, bottom);
         if (!parsed) return null;
-        const fill = color(groupX + (part === 0 ? -16 : 16), Math.min(bottom - 2, top + 4));
-        return { ...parsed, remote: parsed.remote || green(fill), time: pairTime(anchors[index], items, TIMES[index]),
+        if (!parsed.remote && parsed.room === '—')
+          throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
+        return { ...parsed, time: pairTime(anchors[index], items, TIMES[index]),
           ...(middle ? { subgroup: (part === 0 ? "А" : "Б") as "А" | "Б" } : {}) };
       });
       const found = parts.filter((part) => part !== null);
       if (middle && found.length === 0) {
         const whole = parseCell(items, left, right, top, bottom);
-        if (whole) pairs.push({ ...whole, time: pairTime(anchors[index], items, TIMES[index]) });
+        if (whole) {
+          if (!whole.remote && whole.room === '—')
+            throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
+          pairs.push({ ...whole, time: pairTime(anchors[index], items, TIMES[index]) });
+        }
       } else for (const part of found) pairs.push(part);
     }
     const off = Array.from({ length: 4 }, (_, i) => gray(color(groupX, start + (end - start) * (i + 1) / 5)))
