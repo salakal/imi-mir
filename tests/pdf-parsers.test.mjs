@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rowBoundary, splitLesson } from '../lib/pdf-data.ts';
+import { rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
 import { parseSessionPage } from '../lib/sessions.ts';
 
 test('аудитория перед дисциплиной не становится предметом или именем преподавателя', () => {
@@ -43,6 +43,56 @@ test('граница строки отделяет кабинет от след�
   };
   assert.equal(rowBoundary(color, 100, 400, 55, 78), 70.5);
   assert.equal(rowBoundary(color, 100, 400, 78, 103), 92.5);
+});
+
+test('соседние К-ТЭ-19-1 и К-ИИ-19 сохраняют свои пары и аудитории', () => {
+  // Monday's two columns and their contents are taken from the user's
+  // screenshot of the official 28.09–03.10 timetable. The other day markers
+  // only provide the surrounding table structure required by the parser.
+  const items = [
+    { str: 'К-ТЭ-19-1', x: 125, y: 35, width: 110, rot: false },
+    { str: 'К-ТЭ-19-2, К-ИИ-19', x: 345, y: 35, width: 90, rot: false },
+  ];
+  const add = (str, x, y, width = 100) => items.push({ str, x, y, width, rot: false });
+  for (let day = 0; day < 6; day++) {
+    const shift = day * 120;
+    for (let row = 0; row < 4; row++)
+      add(['8.15-9.45', '9.55-11.25', '11.50-13.20', '13.30-15.00'][row], 25, 55 + shift + 22 * row, 65);
+  }
+  const left = [
+    ['Информатика', 'Анохина С.А.', '412'],
+    ['Индивидуальный проект', 'Анохина С.А.', '518'],
+    ['Обществознание', 'Степанова О.П.', '516'],
+    ['Физика', 'Зотова А.А.', '408'],
+  ];
+  const right = [
+    ['9.00 Разговоры о важном', 'Степанова О.П.', '521'],
+    ['Обществознание', 'Степанова О.П.', '516'],
+    ['Физика', 'Зотова А.А.', '408'],
+    ['Математика', 'Акимова К.В.', '411'],
+  ];
+  for (let row = 0; row < 4; row++) {
+    const y = 58 + 22 * row;
+    for (const [values, x] of [[left[row], 125], [right[row], 345]]) {
+      add(values[0], x, y, 100);
+      add(`преп ${values[1]}`, x, y + 4, 100);
+      add(`ауд ${values[2]}`, x, y + 8, 65);
+    }
+  }
+  const sample = (x, y) => {
+    if ([160, 280, 400, 520, 640].some((line) => Math.abs(y - line) < .25)) return [255, 240, 0];
+    if (Math.abs(x - 275) < .25 && y > 40 && y < 160) return [20, 20, 20];
+    if ([70, 92, 114, 136].some((line) => Math.abs(y - line) < .25)) return [20, 20, 20];
+    return x > 275 && y < 70 ? [140, 205, 90] : [255, 255, 255];
+  };
+  const page = { view: [0, 0, 595, 810] };
+  const te = scheduleFromPage(page, items, sample, 'К-ТЭ-19-1')[0].pairs;
+  const ii = scheduleFromPage(page, items, sample, 'К-ИИ-19')[0].pairs;
+  assert.deepEqual(te.map(({ subject, room }) => [subject, room]), left.map(([subject, , room]) => [subject, room]));
+  assert.deepEqual(ii.map(({ subject, room }) => [subject, room]), right.map(([subject, , room]) => [subject.replace('9.00 ', ''), room]));
+  assert.equal(ii[0].time, '09:00');
+  assert.equal(ii[0].remote, false);
+  assert.ok([...te, ...ii].every(({ teacher }) => !/ауд|каб/i.test(teacher)));
 });
 
 test('семестры и три колонки объединённой таблицы различаются', () => {
