@@ -54,7 +54,7 @@ try {
   await send('Page.enable');
   await send('Runtime.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await send('Page.navigate', { url: 'http://127.0.0.1:3018/' });
+  await send('Page.navigate', { url: process.env.IMI_SITE_URL ?? 'http://127.0.0.1:3018/' });
   await until(() => evaluate('document.readyState === "complete"'), 'главной страницы');
   for (const [group, subject, room] of [
     ['К-ТЭ-19-1', 'Информатика', '412'], ['К-ИИ-19', 'Разговоры о важном', '521'],
