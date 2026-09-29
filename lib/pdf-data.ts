@@ -312,7 +312,7 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
 
 function parseCell(source: Text[], left: number, right: number, top: number, bottom: number,
   extendLeft = 0, extendRight = 0): (Omit<Pair, "time"> & { timeHint?: string }) | null {
-  const strings = source.filter((t) => !t.rot && t.y > top + 1 && t.y < bottom - 0.2 &&
+  const strings = source.filter((t) => !t.rot && t.y > top + 0.1 && t.y < bottom - 0.2 &&
     t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
