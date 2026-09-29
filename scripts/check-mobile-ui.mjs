@@ -62,7 +62,7 @@ try {
     console.log('Selecting', group);
     await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`college:${group}`)})`);
     await send('Page.reload', { ignoreCache: true });
-    await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(group)})`), `группы ${group}`);
+    await until(() => evaluate(`document.querySelector('.group-field select')?.value === ${JSON.stringify(`college:${group}`)}`), `выбора группы ${group}`);
     await until(() => evaluate(`Boolean([...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.includes('Расписание')))`), 'вкладки расписания');
     const position = await evaluate(`(() => {
       const tab = [...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.includes('Расписание'));
@@ -94,7 +94,7 @@ try {
     for (const {group,institution,days} of expectations) {
       await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`${institution}:${group}`)})`);
       await send('Page.reload', {ignoreCache:true});
-      await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(group)})`), group);
+      await until(() => evaluate(`document.querySelector('.group-field select')?.value === ${JSON.stringify(`${institution}:${group}`)}`), `выбора группы ${group}`);
       const tab = await evaluate(`(() => {const t=[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.includes('Расписание'));if(!t)return null;t.scrollIntoView({block:'center'});const r=t.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`);
       assert.ok(tab, `${group}: вкладка расписания отсутствует`);
       await send('Input.dispatchMouseEvent',{type:'mousePressed',x:tab.x,y:tab.y,button:'left',clickCount:1});
