@@ -30,6 +30,7 @@ async function officialPdf(path){
 }
 let checked=0, missing=0, rooms=0, unexpected=0, merged=0, sourceMissingRoom=0, unowned=0, subjects=0, formats=0;
 const cases=[];
+const uiExpectations=[];
 const nrm=s=>s.toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[.\s]/g,'');
 for(const [i,s] of sources.entries()){
  const expected=new Map();
@@ -52,6 +53,7 @@ for(const [i,s] of sources.entries()){
  if(separators.length!==5)console.log('SEPARATORS',i,separators);
  const anchors=Array.from({length:6},(_,day)=>items.filter(t=>t.x>=15&&t.x<Math.min(...headers.map(h=>h.x))-12&&t.y>([headers[0].y+6,...separators][day])&&t.y<([...separators,H-10][day])&&/^(?:8\.15|9\.00|9\.55|11\.50|13\.30|15\.20|17\.00)/.test(t.str)).sort((a,b)=>a.y-b.y));
  const parsed={};for(const group of s.groups)parsed[group]=await parseSchedule(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),group,rgb);
+ for(const group of s.groups)uiExpectations.push({group,institution:s.institution,days:parsed[group].map(d=>d.pairs.length)});
  const sourceMarkers=items.filter(t=>(/^преп\s*\.?/i.test(t.str)||/^ауд\s+[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\./i.test(t.str))&&t.y>headers[0].y+4);
  for(const marker of sourceMarkers){
    const day=separators.filter(y=>y<marker.y).length;
@@ -156,4 +158,5 @@ const summary={pdfFiles:sources.length,groups:sources.reduce((n,s)=>n+s.groups.l
   missing,roomErrors:rooms,subjectErrors:subjects,formatErrors:formats,unexpectedOrDuplicates:unexpected,
   mergedCommonSourceCells:merged,sourceRoomUnspecified:sourceMissingRoom,unownedSourceCells:unowned,cases};
 console.log(JSON.stringify(summary,null,2));
+if(process.env.IMI_AUDIT_EXPECTATIONS)writeFileSync(process.env.IMI_AUDIT_EXPECTATIONS,JSON.stringify(uiExpectations));
 if(missing||rooms||subjects||formats||unexpected||unowned)process.exitCode=1;
