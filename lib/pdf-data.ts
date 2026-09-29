@@ -311,6 +311,25 @@ export function cellsForGroup(rules: number[], groupLeft: number, groupRight: nu
     .filter((cell, index) => !cells.slice(0, index).some((other) => other.left === cell.left && other.right === cell.right));
 }
 
+// PDF.js canvas rasterization can omit hairline strokes that are present in
+// the document. When separate teacher blocks occupy the same apparent cell,
+// restore its header-derived column boundaries, including blank columns.
+// A single block still belongs to the entire measured cell (colspan).
+export function inferMissingColumnRules(rules: number[], teachers: number[], centers: number[], left: number, right: number) {
+  const boundaries = centers.slice(1).map((center, i) => (centers[i] + center) / 2);
+  const inferred = [...rules];
+  const edges = [left, ...rules.filter((x) => x > left && x < right), right].sort((a, b) => a - b);
+  for (let i = 0; i < edges.length - 1; i++) {
+    const cellLeft = edges[i], cellRight = edges[i + 1];
+    const occupants = teachers.filter((x) => x > cellLeft && x < cellRight);
+    const columns = new Set(occupants.map((x) => centers.reduce((best, center, i) =>
+      Math.abs(center - x) < Math.abs(centers[best] - x) ? i : best, 0)));
+    if (columns.size < 2) continue;
+    for (const edge of boundaries) if (edge > cellLeft && edge < cellRight) inferred.push(edge);
+  }
+  return inferred.sort((a, b) => a - b);
+}
+
 export function rowBoundary(color: (x: number, y: number) => number[], left: number, right: number, from: number, to: number) {
   // Require a continuous stroke. Letter stems in a long title can hit many
   // sparse samples at the same height and otherwise masquerade as a border.
@@ -450,19 +469,18 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
         /преп\s*\.?/i.test(t.str)).map((t) => t.x + t.width / 2);
       const centers = headers.map((h) => h.x + h.width / 2);
       const nominalEdges = centers.slice(1).map((center, i) => (center + centers[i]) / 2);
-      nominalEdges.push(groupX);
-      for (const edge of nominalEdges) {
+      for (const edge of [...nominalEdges, groupX]) {
         if (rules.some((rule) => Math.abs(rule - edge) < 3)) continue;
         const reach = (groupRight - groupLeft) * .7;
         if (teachers.some((x) => x < edge - 2 && x > edge - reach) &&
           teachers.some((x) => x > edge + 2 && x < edge + reach)) rules.push(edge);
       }
-      rules.sort((a, b) => a - b);
-      const cells = cellsForGroup(rules, groupLeft, groupRight, allLeft, allRight);
+      const resolvedRules = inferMissingColumnRules(rules, teachers, centers, allLeft, allRight);
+      const cells = cellsForGroup(resolvedRules, groupLeft, groupRight, allLeft, allRight);
       for (const { left, right, subgroup } of cells) {
         let cell;
         try { cell = parseCell(items, left, right, cellTop, cellBottom); }
-        catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${rules.join(',')} ${(error as Error).message}`); }
+        catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} ${(error as Error).message}`); }
         if (!cell) continue;
         const { timeHint, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
