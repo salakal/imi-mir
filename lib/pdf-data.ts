@@ -2,6 +2,8 @@ import type { PDFPageProxy } from "pdfjs-dist";
 type LegacyGroup = "49-1" | "49-2" | "31";
 
 type Text = { str: string; x: number; y: number; width: number; rot: boolean };
+type Rule = { x: number; y: number; width: number; height: number };
+type TableRules = { vertical: Rule[]; horizontal: Rule[] };
 export type Debt = { id: string; semester: number; subject: string; teacher: string };
 export type Student = { name: string; debts: Debt[] };
 export type Pair = {
@@ -51,6 +53,34 @@ async function pixels(page: PDFPageProxy) {
     const i = (py * width + px) * 4;
     return [data[i], data[i + 1], data[i + 2]];
   };
+}
+
+async function tableRules(page: PDFPageProxy): Promise<TableRules> {
+  const engine = await pdf();
+  const ops = await page.getOperatorList();
+  const vertical: Rule[] = [], horizontal: Rule[] = [];
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    if (ops.fnArray[i] !== engine.OPS.constructPath) continue;
+    const [commands, coords] = ops.argsArray[i] as [number[], number[]];
+    if (commands.length !== 1 || commands[0] !== engine.OPS.rectangle || coords.length !== 4) continue;
+    const [x, bottom, width, height] = coords;
+    const rule = { x, y: page.view[3] - bottom - height, width, height };
+    if (width <= 1.1 && height > 8) vertical.push(rule);
+    if (height <= 1.1 && width > 10) horizontal.push(rule);
+  }
+  return { vertical, horizontal };
+}
+
+function vectorVertical(lines: Rule[], left: number, right: number, top: number, bottom: number) {
+  return [...new Set(lines.filter((line) => line.x > left && line.x < right &&
+    Math.max(0, Math.min(bottom, line.y + line.height) - Math.max(top, line.y)) >= (bottom - top) * .55)
+    .map((line) => Math.round((line.x + line.width / 2) * 100) / 100))].sort((a, b) => a - b);
+}
+
+function vectorHorizontal(lines: Rule[], left: number, right: number, top: number, bottom: number) {
+  return [...new Set(lines.filter((line) => line.y > top && line.y < bottom &&
+    Math.max(0, Math.min(right, line.x + line.width) - Math.max(left, line.x)) >= Math.max(15, (right - left) * .4))
+    .map((line) => Math.round((line.y + line.height / 2) * 100) / 100))].sort((a, b) => a - b);
 }
 
 function yellow([r, g, b]: number[]) { return r > 210 && g > 205 && b < 140 && r > b * 1.65; }
@@ -245,16 +275,16 @@ function pairTime(anchor: Text, items: Text[], fallback: string) {
 }
 
 function boundary(color: (x: number, y: number) => number[], x: number, top: number, bottom: number) {
-  let count = 0, total = 0;
+  let count = 0, total = 0, run = 0, longest = 0;
   for (let y = top + 3; y < bottom - 3; y += 1) {
     total++;
-    const contrast = [-1, -0.5, 0, 0.5, 1].some((dx) => {
-      const current = color(x + dx, y)[0];
-      return Math.min(color(x + dx - 2, y)[0], color(x + dx + 2, y)[0]) - current > 18;
-    });
-    if (contrast) count++;
+    const current = color(x, y)[0];
+    const contrast = current < 190 &&
+      Math.min(color(x - 2, y)[0], color(x + 2, y)[0]) - current > 18;
+    if (contrast) { count++; run++; longest = Math.max(longest, run); }
+    else run = 0;
   }
-  return total > 2 && count / total > .6;
+  return total > 2 && count / total > .65 && longest / total > .55;
 }
 function nearbyBoundary(color: (x: number, y: number) => number[], desired: number, top: number, bottom: number, radius = 6) {
   for (let offset = 0; offset <= radius; offset += 0.5) {
@@ -264,19 +294,76 @@ function nearbyBoundary(color: (x: number, y: number) => number[], desired: numb
   return null;
 }
 
-export function rowBoundary(color: (x: number, y: number) => number[], left: number, right: number, from: number, to: number) {
-  const width = right - left;
-  // A true table rule crosses nearly the whole column. Four samples could
-  // mistake similarly aligned teacher text for a horizontal rule.
-  const xs = Array.from({ length: 11 }, (_, index) => left + width * (index + 1) / 12);
-  const candidates: number[] = [];
-  for (let y = from + 2; y < to - 2; y += 0.5) {
-    const ruled = xs.filter((x) => {
-      const current = color(x, y)[0];
-      return current < 190 && color(x, y - 2)[0] - current > 25 && color(x, y + 2)[0] - current > 25;
-    }).length;
-    if (ruled >= 9) candidates.push(y);
+// A rule is absent inside a cell that spans neighboring group/subgroup columns.
+// Collect the rules for the *whole row* before assigning its text to groups.
+function verticalRules(color: (x: number, y: number) => number[], left: number, right: number, top: number, bottom: number) {
+  const rules: number[] = [];
+  for (let x = Math.floor(left); x <= Math.ceil(right); x += .5) {
+    if (!boundary(color, x, top, bottom)) continue;
+    if (rules.length && x - rules[rules.length - 1] < 1.5) continue;
+    rules.push(x);
   }
+  return rules;
+}
+
+function horizontalRules(color: (x: number, y: number) => number[], left: number, right: number, top: number, bottom: number) {
+  const rules: number[] = [];
+  for (let y = top + 5; y < bottom - 5; y += .5) {
+    let run = 0, longest = 0;
+    for (let x = left + 2; x < right - 2; x += .5) {
+      const ink = color(x, y)[0];
+      const ruled = ink < 190 && color(x, y - 2)[0] - ink > 25 && color(x, y + 2)[0] - ink > 25;
+      run = ruled ? run + .5 : 0;
+      longest = Math.max(longest, run);
+    }
+    if (longest >= Math.max(15, (right - left) * .4) &&
+      (!rules.length || y - rules[rules.length - 1] > 2)) rules.push(y);
+  }
+  return rules;
+}
+
+function headerGroups(label: string) {
+  const pieces = label.toLocaleUpperCase('ru').split(/\s*,\s*/);
+  const first = pieces[0];
+  return pieces.map((piece, index) => index && /^\d/.test(piece)
+    ? `${first.slice(0, first.lastIndexOf('-') + 1)}${piece}` : piece);
+}
+
+export function cellsForGroup(rules: number[], groupLeft: number, groupRight: number, allLeft: number, allRight: number) {
+  const span = groupRight - groupLeft;
+  const lanes = [groupLeft + span / 4, groupRight - span / 4];
+  const cells = lanes.map((x) => ({
+    left: [...rules].reverse().find((edge) => edge < x) ?? (rules.length ? allLeft : groupLeft),
+    right: rules.find((edge) => edge > x) ?? (rules.length ? allRight : groupRight),
+  }));
+  const distinct = cells[0].left !== cells[1].left || cells[0].right !== cells[1].right;
+  return cells.map((cell, part) => ({ ...cell, subgroup: distinct ? (part === 0 ? 'А' : 'Б') as 'А' | 'Б' : undefined }))
+    .filter((cell, index) => !cells.slice(0, index).some((other) => other.left === cell.left && other.right === cell.right));
+}
+
+// PDF.js canvas rasterization can omit hairline strokes that are present in
+// the document. When separate teacher blocks occupy the same apparent cell,
+// restore its header-derived column boundaries, including blank columns.
+// A single block still belongs to the entire measured cell (colspan).
+export function inferMissingColumnRules(rules: number[], teachers: number[], centers: number[], left: number, right: number) {
+  const boundaries = centers.slice(1).map((center, i) => (centers[i] + center) / 2);
+  const inferred = [...rules];
+  const edges = [left, ...rules.filter((x) => x > left && x < right), right].sort((a, b) => a - b);
+  for (let i = 0; i < edges.length - 1; i++) {
+    const cellLeft = edges[i], cellRight = edges[i + 1];
+    const occupants = teachers.filter((x) => x > cellLeft && x < cellRight);
+    const columns = new Set(occupants.map((x) => centers.reduce((best, center, i) =>
+      Math.abs(center - x) < Math.abs(centers[best] - x) ? i : best, 0)));
+    if (columns.size < 2) continue;
+    for (const edge of boundaries) if (edge > cellLeft && edge < cellRight) inferred.push(edge);
+  }
+  return inferred.sort((a, b) => a - b);
+}
+
+export function rowBoundary(color: (x: number, y: number) => number[], left: number, right: number, from: number, to: number) {
+  // Require a continuous stroke. Letter stems in a long title can hit many
+  // sparse samples at the same height and otherwise masquerade as a border.
+  const candidates = horizontalRules(color, left, right, from, to);
   // A time label is positioned a few points below the top border of its row.
   return candidates.sort((a, b) => Math.abs(a - (to - 5)) - Math.abs(b - (to - 5)))[0] ?? null;
 }
@@ -285,8 +372,18 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
   // The PDF text layer occasionally paints the label twice without another
   // lesson between them: "преп преп Фамилия".
   value = value.replace(/преп(?:\s+преп)+(?=\s|$)/gi, 'преп');
+  const roomPattern = /(?:аудитория|ауд\.?|кабинет|каб\.?)\s*№?\s*(\d+[а-яёa-z]?(?:[-/]\d+[а-яёa-z]?)?(?:\s*,\s*\d+[а-яёa-z]?)*)/gi;
+  // A few source cells mislabel a person's name as "ауд Фамилия И.О."
+  // and still print a separate numeric auditorium. The initials and the
+  // second, numeric room marker make the intended fields unambiguous.
+  value = value.replace(/(^|\s)ауд\.?\s+(?=[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\.\s*[А-ЯЁ])/i, '$1преп ');
   const separator = value.match(/преп\s*\.?\s*/i);
-  if (!separator || separator.index === undefined) return null;
+  if (!separator || separator.index === undefined) {
+    const rooms = [...value.matchAll(roomPattern)].map((match) => match[1]);
+    const subject = value.replace(roomPattern, ' ').replace(/^\d{1,2}\.\d{2}\s*/, '').replace(/\s+/g, ' ').trim();
+    if (rooms.length !== 1 || !/^[А-ЯЁ]/i.test(subject) || subject.split(/\s+/).length < 2) return null;
+    return { subject, teacher: 'Не указан в PDF', room: rooms[0], remote: false };
+  }
   // A second teacher marker indicates that two lessons have been joined.
   if (/преп\s*\.?/i.test(value.slice(separator.index + separator[0].length))) return null;
   const subjectPart = value.slice(0, separator.index)
@@ -297,13 +394,15 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
   // A street address / stadium is a location, never a person's surname.
   const locationPattern = /(?:(?:г\.?\s*Самара\s*,?\s*)?(?:ул\.?\s*)?[А-ЯЁ][а-яё-]+\s+\d+[а-яёa-z]?\s*,?\s*(?:стадион|спорткомплекс|спортивный комплекс|спортзал|спортивный зал)[^,]*(?:,\s*[^,]+)?|(?:стадион|спорткомплекс|спортивный комплекс|баскетбольный зал|спортивный зал|спорт\s*зал)[^,]*(?:,\s*[^,]+)?)/i;
   const address = value.match(locationPattern)?.[0]?.trim();
-  const roomPattern = /(?:аудитория|ауд\.?|кабинет|каб\.?)\s*№?\s*(\d+[а-яёa-z]?(?:[-/]\d+[а-яёa-z]?)?)/gi;
   const rooms = [...value.matchAll(roomPattern)].map((match) => match[1]);
   if (new Set(rooms.map((room) => room.toLocaleLowerCase('ru'))).size > 1) return null;
   const auditorium = rooms[0];
-  const room = address ?? auditorium ?? '—';
+  const roomUnspecified = /(?:^|\s)(?:ауд\.?|каб\.?)(?:\s|$)/i.test(value.replace(roomPattern, ' '));
+  if (roomUnspecified && /(?:ауд|каб)\.?\s+[А-ЯЁ][а-яё]+/.test(subjectPart)) return null;
+  const room = address ?? auditorium ?? (roomUnspecified ? 'Не указан в PDF' : '—');
   const stripLocation = (s: string) => s.replace(roomPattern, ' ')
-    .replace(locationPattern, ' ').replace(/дистанционно/gi, ' ').replace(/\s+/g, ' ').trim();
+    .replace(locationPattern, ' ').replace(/(?:^|\s)(?:ауд\.?|каб\.?)(?=\s|$)/gi, ' ')
+    .replace(/дистанционно/gi, ' ').replace(/\s+/g, ' ').trim();
   const subject = stripLocation(subjectPart);
   const teacher = stripLocation(tail).replace(/^[,;–-]+|[,;–-]+$/g, '').trim();
   if (!subject || /(?:^|\s)(?:ауд(?:итория)?|каб(?:инет)?)\.?(?:\s|$)/i.test(subject + ' ' + teacher)) return null;
@@ -327,7 +426,7 @@ export async function parseSchedule(buffer: ArrayBuffer, group: string, sample?:
   const page = await open(buffer);
   const items = await text(page);
   const color = sample ?? await pixels(page);
-  return scheduleFromPage(page, items, color, group);
+  return scheduleFromPage(page, items, color, group, await tableRules(page));
 }
 
 // Reuse the PDF render and text extraction for every group in a shared timetable.
@@ -335,25 +434,20 @@ export async function parseSchedules(buffer: ArrayBuffer, groups: string[]): Pro
   const page = await open(buffer);
   const items = await text(page);
   const color = await pixels(page);
+  const rules = await tableRules(page);
   const result: Record<string, Day[]> = {};
   for (const group of groups) {
-    try { result[group] = scheduleFromPage(page, items, color, group); }
+    try { result[group] = scheduleFromPage(page, items, color, group, rules); }
     catch { /* A missing column must not hide other groups in this PDF. */ }
   }
   return result;
 }
 
-export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string): Day[] {
+export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string, vector?: TableRules): Day[] {
   const normalized = group.toLocaleUpperCase('ru');
   const headers = items.filter((t) => t.y < 82 && /^(?:К-[А-ЯЁ]+|БД|ЗУ|Юр)-\d/i.test(t.str))
     .sort((a, b) => a.x - b.x);
-  const header = headers.find((t) => t.str.toLocaleUpperCase('ru') === normalized ||
-    (normalized === 'К-БД-21' && t.str.toLocaleUpperCase('ru') === 'К-БД-39,21') ||
-    (normalized === 'К-БД-39' && t.str.toLocaleUpperCase('ru') === 'К-БД-39,21') ||
-    (normalized === 'ЗУ-29' && t.str.toLocaleUpperCase('ru') === 'ЗУ-29,11') ||
-    (normalized === 'ЗУ-11' && t.str.toLocaleUpperCase('ru') === 'ЗУ-29,11') ||
-    (normalized === 'К-ИИ-19' && t.str.toLocaleUpperCase('ru').includes('К-ИИ-19') && t.str.includes(',')) ||
-    (normalized === 'К-ТЭ-19-2' && t.str.toLocaleUpperCase('ru').includes('К-ТЭ-19-2')));
+  const header = headers.find((t) => headerGroups(t.str).includes(normalized));
   if (!header) throw new Error(`Группа ${group} не найдена в опубликованном PDF`);
   const height = page.view[3];
   const headerIndex = headers.indexOf(header);
@@ -367,10 +461,11 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
   const separatorX = headers[0].x + headers[0].width / 2;
   const separators: number[] = [];
   for (let y = header.y + 12; y < height - 15; y += 0.5) {
-    if (yellow(color(separatorX, y)) && (separators.length === 0 || y - separators[separators.length - 1] > 15))
+    if ([-3, -1.5, 0, 1.5, 3].some((dx) => yellow(color(separatorX + dx, y))) &&
+      (separators.length === 0 || y - separators[separators.length - 1] > 15))
       separators.push(y);
   }
-  if (separators.length < 5) throw new Error("Не удалось проверить границы дней в расписании");
+  if (separators.length < 5) throw new Error(`Не удалось проверить границы дней в расписании: ${separators.length} x=${separatorX}`);
   const ends = [header.y + 6, ...separators, height - 10];
   const result: Day[] = [];
   for (let day = 0; day < 6; day++) {
@@ -383,50 +478,55 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
     for (let index = 0; index < anchors.length; index++) {
       const previous = anchors[index - 1];
       const next = anchors[index + 1];
-      const top = rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
+      const top = vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
+        .sort((a, b) => Math.abs(a - (anchors[index].y - 5)) - Math.abs(b - (anchors[index].y - 5)))[0]
+        ?? rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
         ?? (previous ? anchors[index].y - 6.5 : start);
       const bottom = next
-        ? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? next.y - 6.5
-        : end - 1;
-      if (gray(color(groupX - 16, anchors[index].y)) && gray(color(groupX + 16, anchors[index].y))) continue;
-      // Header centers only approximate the actual column edges. Search a
-      // fraction of the column width for the printed rule. When a row has no
-      // rule (merged cells), keep the inferred edge: widening into the next
-      // group silently steals its teacher, room and even a whole lesson.
-      const radius = Math.min(35, (groupRight - groupLeft) * 0.35);
-      const leftRule = nearbyBoundary(color, groupLeft, top, bottom, radius);
-      const rightRule = nearbyBoundary(color, groupRight, top, bottom, radius);
-      const left = leftRule ?? groupLeft;
-      const right = rightRule ?? groupRight;
-      const middle = nearbyBoundary(color, groupX, top, bottom) !== null;
-      const cells = middle ? [{ left: groupLeft, right: groupX, extendLeft: 0, extendRight: 0 },
-        { left: groupX, right: groupRight, extendLeft: 0, extendRight: 0 }] :
-        [{ left, right, extendLeft: leftRule === null ? 4 : 0, extendRight: rightRule === null ? 4 : 0 }];
-      const parts = cells.map(({ left, right, extendLeft, extendRight }, part) => {
-        const cell = parseCell(items, left, right, top, bottom, extendLeft, extendRight);
-        if (!cell) return null;
+        ? vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, anchors[index].y, next.y)
+          .sort((a, b) => Math.abs(a - (next.y - 5)) - Math.abs(b - (next.y - 5)))[0]
+          ?? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? next.y - 6.5
+        : vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, anchors[index].y + 6, end)[0]
+          ?? horizontalRules(color, groupLeft, groupRight, anchors[index].y, end).find((y) => y > anchors[index].y + 6) ?? end - 1;
+      const allLeft = Math.max(15, headers[0].x + headers[0].width / 2 -
+        (headers[1].x + headers[1].width / 2 - (headers[0].x + headers[0].width / 2)) / 2 - 5);
+      const last = headers[headers.length - 1], penultimate = headers[headers.length - 2];
+      const allRight = Math.min(page.view[2] - 5, last.x + last.width / 2 +
+        (last.x + last.width / 2 - penultimate.x - penultimate.width / 2) / 2 + 5);
+      const cuts = vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, top + .2, bottom - .2);
+      const edges = [top, ...cuts, bottom];
+      for (let segment = 0; segment < edges.length - 1; segment++) {
+      const cellTop = edges[segment], cellBottom = edges[segment + 1];
+      const rules = vector?.vertical.length
+        ? vectorVertical(vector.vertical, allLeft, allRight, cellTop, cellBottom)
+        : verticalRules(color, allLeft, allRight, cellTop, cellBottom);
+      // Some official tables omit the vertical stroke between two different
+      // lessons. Multiple teacher markers on opposite sides of a header
+      // boundary are evidence of two cells, not a common lecture.
+      const teachers = items.filter((t) => !t.rot && t.y > cellTop + .1 && t.y < cellBottom - .2 &&
+        /преп\s*\.?/i.test(t.str)).map((t) => t.x + t.width / 2);
+      const centers = headers.map((h) => h.x + h.width / 2);
+      const nominalEdges = centers.slice(1).map((center, i) => (center + centers[i]) / 2);
+      for (const edge of [...nominalEdges, groupX]) {
+        if (rules.some((rule) => Math.abs(rule - edge) < 3)) continue;
+        const reach = (groupRight - groupLeft) * .7;
+        if (teachers.some((x) => x < edge - 2 && x > edge - reach) &&
+          teachers.some((x) => x > edge + 2 && x < edge + reach)) rules.push(edge);
+      }
+      const resolvedRules = inferMissingColumnRules(rules, teachers, centers, allLeft, allRight);
+      const cells = cellsForGroup(resolvedRules, groupLeft, groupRight, allLeft, allRight);
+      for (const { left, right, subgroup } of cells) {
+        let cell;
+        try { cell = parseCell(items, left, right, cellTop, cellBottom); }
+        catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} ${(error as Error).message}`); }
+        if (!cell) continue;
         const { timeHint, ...parsed } = cell;
-        if (!parsed.remote && parsed.room === '—') {
-          if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1')
-            console.warn('IMI PDF cell', JSON.stringify({ group, day, index, top, bottom, left, right, middle,
-              nearby: items.filter((t) => t.y > top - 4 && t.y < bottom + 4 &&
-                t.x > left - 20 && t.x < right + 20).map(({ str, x, y, width }) => ({ str, x, y, width })) }));
-          throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
-        }
-        return { ...parsed, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]),
-          ...(middle ? { subgroup: (part === 0 ? "А" : "Б") as "А" | "Б" } : {}) };
-      });
-      const found = parts.filter((part) => part !== null);
-      if (middle && found.length === 0) {
-        const cell = parseCell(items, left, right, top, bottom,
-          leftRule === null ? 4 : 0, rightRule === null ? 4 : 0);
-        if (cell) {
-          const { timeHint, ...whole } = cell;
-          if (!whole.remote && whole.room === '—')
-            throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}`);
-          pairs.push({ ...whole, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]) });
-        }
-      } else for (const part of found) pairs.push(part);
+        if (!parsed.remote && parsed.room === '—')
+          throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}: ${parsed.subject}`);
+        pairs.push({ ...parsed, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]),
+          ...(subgroup ? { subgroup } : {}) });
+      }
+      }
     }
     const off = Array.from({ length: 4 }, (_, i) => gray(color(groupX, start + (end - start) * (i + 1) / 5)))
       .filter(Boolean).length >= 3 && pairs.length === 0;

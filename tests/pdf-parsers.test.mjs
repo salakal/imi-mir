@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
+import { cellsForGroup, inferMissingColumnRules, rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
+
+test('слабые вертикальные штрихи не склеивают две пары через пустые колонки', () => {
+  const centers = [90, 196, 302, 408];
+  const rules = inferMissingColumnRules([36.5], [197, 410], centers, 36, 469);
+  assert.deepEqual(rules, [36.5, 143, 249, 355]);
+  assert.deepEqual(cellsForGroup(rules, 37, 143, 36, 469).map(c => [c.left, c.right]), [[36.5, 143]]);
+  assert.deepEqual(inferMissingColumnRules([36.5], [197], centers, 36, 469), [36.5]);
+});
 import { parseSessionPage } from '../lib/sessions.ts';
 
 test('аудитория перед дисциплиной не становится предметом или именем преподавателя', () => {
@@ -26,6 +34,30 @@ test('кабинет и зелёная ячейка «Разговоры о ва
   assert.deepEqual(splitLesson('9.00 Разговоры о важном преп преп Степанова О.П ауд 521'), {
     subject: 'Разговоры о важном', teacher: 'Степанова О.П', room: '521', remote: false,
   });
+});
+
+test('документ без строки преподавателя и ошибочная метка перед ФИО сохраняют отдельные поля', () => {
+  assert.deepEqual(splitLesson('10.00 Всероссийская проверочная работа предмет Общество ауд 411'), {
+    subject: 'Всероссийская проверочная работа предмет Общество', teacher: 'Не указан в PDF', room: '411', remote: false,
+  });
+  assert.deepEqual(splitLesson('Теория государства и права ауд Егорова Ю.О. ауд 412'), {
+    subject: 'Теория государства и права', teacher: 'Егорова Ю.О.', room: '412', remote: false,
+  });
+  assert.equal(splitLesson('Административное право преп Захарова Ю.С. Ауд 205, 205а')?.room, '205, 205а');
+});
+
+test('ячейка с colspan назначается всем перекрытым колонкам и обеим подгруппам без дубля', () => {
+  const groups = [[0, 100], [100, 200], [200, 300], [300, 400]];
+  const owners = (rules, left, right) => groups.map(([a, b]) =>
+    cellsForGroup(rules, a, b, 0, 400).filter(c => c.left === left && c.right === right));
+  assert.deepEqual(owners([0, 100, 200, 300, 400], 100, 200).map(x=>x.length), [0, 1, 0, 0]);
+  assert.deepEqual(owners([0, 100, 300, 400], 100, 300).map(x=>x.length), [0, 1, 1, 0]);
+  assert.deepEqual(owners([0, 300, 400], 0, 300).map(x=>x.length), [1, 1, 1, 0]);
+  assert.deepEqual(cellsForGroup([0, 100, 200, 300, 400], 100, 200, 0, 400),
+    [{left:100,right:200,subgroup:undefined}]);
+  assert.deepEqual(cellsForGroup([0, 100, 150, 200, 300, 400], 100, 200, 0, 400),
+    [{left:100,right:150,subgroup:'А'},{left:150,right:200,subgroup:'Б'}]);
+  assert.deepEqual(owners([0, 400], 0, 400).map(x=>x.length), [1, 1, 1, 1]);
 });
 
 test('разные аудитории и второй преподаватель указывают на склейку соседних пар', () => {
