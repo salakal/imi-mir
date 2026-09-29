@@ -75,7 +75,9 @@ test('соседние К-ТЭ-19-1 и К-ИИ-19 сохраняют свои п
     ['Математика', 'Акимова К.В.', '411'],
   ];
   for (let row = 0; row < 4; row++) {
-    const y = 58 + 22 * row;
+    // PDF.js canvas can place the subject only 0.95 pt below the rule.
+    // A 1 pt top margin used to drop this subject while retaining its teacher.
+    const y = row === 1 ? 70.95 : 58 + 22 * row;
     for (const [values, x] of [[left[row], 125], [right[row], 345]]) {
       add(values[0], x, y, 100);
       add(`преп ${values[1]}`, x, y + 4, 100);
