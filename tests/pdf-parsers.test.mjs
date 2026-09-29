@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cellsForGroup, rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
+import { cellsForGroup, inferMissingColumnRules, rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
+
+test('слабые вертикальные штрихи не склеивают две пары через пустые колонки', () => {
+  const centers = [90, 196, 302, 408];
+  const rules = inferMissingColumnRules([36.5], [197, 410], centers, 36, 469);
+  assert.deepEqual(rules, [36.5, 143, 249, 355]);
+  assert.deepEqual(cellsForGroup(rules, 37, 143, 36, 469).map(c => [c.left, c.right]), [[36.5, 143]]);
+  assert.deepEqual(inferMissingColumnRules([36.5], [197], centers, 36, 469), [36.5]);
+});
 import { parseSessionPage } from '../lib/sessions.ts';
 
 test('аудитория перед дисциплиной не становится предметом или именем преподавателя', () => {
