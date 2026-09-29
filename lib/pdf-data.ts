@@ -2,6 +2,8 @@ import type { PDFPageProxy } from "pdfjs-dist";
 type LegacyGroup = "49-1" | "49-2" | "31";
 
 type Text = { str: string; x: number; y: number; width: number; rot: boolean };
+type Rule = { x: number; y: number; width: number; height: number };
+type TableRules = { vertical: Rule[]; horizontal: Rule[] };
 export type Debt = { id: string; semester: number; subject: string; teacher: string };
 export type Student = { name: string; debts: Debt[] };
 export type Pair = {
@@ -51,6 +53,34 @@ async function pixels(page: PDFPageProxy) {
     const i = (py * width + px) * 4;
     return [data[i], data[i + 1], data[i + 2]];
   };
+}
+
+async function tableRules(page: PDFPageProxy): Promise<TableRules> {
+  const engine = await pdf();
+  const ops = await page.getOperatorList();
+  const vertical: Rule[] = [], horizontal: Rule[] = [];
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    if (ops.fnArray[i] !== engine.OPS.constructPath) continue;
+    const [commands, coords] = ops.argsArray[i] as [number[], number[]];
+    if (commands.length !== 1 || commands[0] !== engine.OPS.rectangle || coords.length !== 4) continue;
+    const [x, bottom, width, height] = coords;
+    const rule = { x, y: page.view[3] - bottom - height, width, height };
+    if (width <= 1.1 && height > 8) vertical.push(rule);
+    if (height <= 1.1 && width > 10) horizontal.push(rule);
+  }
+  return { vertical, horizontal };
+}
+
+function vectorVertical(lines: Rule[], left: number, right: number, top: number, bottom: number) {
+  return [...new Set(lines.filter((line) => line.x > left && line.x < right &&
+    Math.max(0, Math.min(bottom, line.y + line.height) - Math.max(top, line.y)) >= (bottom - top) * .55)
+    .map((line) => Math.round((line.x + line.width / 2) * 100) / 100))].sort((a, b) => a - b);
+}
+
+function vectorHorizontal(lines: Rule[], left: number, right: number, top: number, bottom: number) {
+  return [...new Set(lines.filter((line) => line.y > top && line.y < bottom &&
+    Math.max(0, Math.min(right, line.x + line.width) - Math.max(left, line.x)) >= Math.max(15, (right - left) * .4))
+    .map((line) => Math.round((line.y + line.height / 2) * 100) / 100))].sort((a, b) => a - b);
 }
 
 function yellow([r, g, b]: number[]) { return r > 210 && g > 205 && b < 140 && r > b * 1.65; }
@@ -396,7 +426,7 @@ export async function parseSchedule(buffer: ArrayBuffer, group: string, sample?:
   const page = await open(buffer);
   const items = await text(page);
   const color = sample ?? await pixels(page);
-  return scheduleFromPage(page, items, color, group);
+  return scheduleFromPage(page, items, color, group, await tableRules(page));
 }
 
 // Reuse the PDF render and text extraction for every group in a shared timetable.
@@ -404,15 +434,16 @@ export async function parseSchedules(buffer: ArrayBuffer, groups: string[]): Pro
   const page = await open(buffer);
   const items = await text(page);
   const color = await pixels(page);
+  const rules = await tableRules(page);
   const result: Record<string, Day[]> = {};
   for (const group of groups) {
-    try { result[group] = scheduleFromPage(page, items, color, group); }
+    try { result[group] = scheduleFromPage(page, items, color, group, rules); }
     catch { /* A missing column must not hide other groups in this PDF. */ }
   }
   return result;
 }
 
-export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string): Day[] {
+export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: number, y: number) => number[], group: string, vector?: TableRules): Day[] {
   const normalized = group.toLocaleUpperCase('ru');
   const headers = items.filter((t) => t.y < 82 && /^(?:К-[А-ЯЁ]+|БД|ЗУ|Юр)-\d/i.test(t.str))
     .sort((a, b) => a.x - b.x);
@@ -447,21 +478,28 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
     for (let index = 0; index < anchors.length; index++) {
       const previous = anchors[index - 1];
       const next = anchors[index + 1];
-      const top = rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
+      const top = vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
+        .sort((a, b) => Math.abs(a - (anchors[index].y - 5)) - Math.abs(b - (anchors[index].y - 5)))[0]
+        ?? rowBoundary(color, groupLeft, groupRight, previous?.y ?? start, anchors[index].y)
         ?? (previous ? anchors[index].y - 6.5 : start);
       const bottom = next
-        ? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? next.y - 6.5
-        : horizontalRules(color, groupLeft, groupRight, anchors[index].y, end).find((y) => y > anchors[index].y + 6) ?? end - 1;
+        ? vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, anchors[index].y, next.y)
+          .sort((a, b) => Math.abs(a - (next.y - 5)) - Math.abs(b - (next.y - 5)))[0]
+          ?? rowBoundary(color, groupLeft, groupRight, anchors[index].y, next.y) ?? next.y - 6.5
+        : vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, anchors[index].y + 6, end)[0]
+          ?? horizontalRules(color, groupLeft, groupRight, anchors[index].y, end).find((y) => y > anchors[index].y + 6) ?? end - 1;
       const allLeft = Math.max(15, headers[0].x + headers[0].width / 2 -
         (headers[1].x + headers[1].width / 2 - (headers[0].x + headers[0].width / 2)) / 2 - 5);
       const last = headers[headers.length - 1], penultimate = headers[headers.length - 2];
       const allRight = Math.min(page.view[2] - 5, last.x + last.width / 2 +
         (last.x + last.width / 2 - penultimate.x - penultimate.width / 2) / 2 + 5);
-      const cuts = horizontalRules(color, groupLeft, groupRight, top, bottom);
+      const cuts = vectorHorizontal(vector?.horizontal ?? [], groupLeft, groupRight, top + .2, bottom - .2);
       const edges = [top, ...cuts, bottom];
       for (let segment = 0; segment < edges.length - 1; segment++) {
       const cellTop = edges[segment], cellBottom = edges[segment + 1];
-      const rules = verticalRules(color, allLeft, allRight, cellTop, cellBottom);
+      const rules = vector?.vertical.length
+        ? vectorVertical(vector.vertical, allLeft, allRight, cellTop, cellBottom)
+        : verticalRules(color, allLeft, allRight, cellTop, cellBottom);
       // Some official tables omit the vertical stroke between two different
       // lessons. Multiple teacher markers on opposite sides of a header
       // boundary are evidence of two cells, not a common lecture.
