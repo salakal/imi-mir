@@ -83,7 +83,8 @@ for(const [i,s] of sources.entries()){
       t.x+t.width/2>left+1&&t.x+t.width/2<right-1&&
       Math.abs(t.x+t.width/2-sx)<Math.max(65,(right-left)*.65)&&
       !/^(?:преп|ауд|каб|спорт\s*зал|стадион|подгруппа|\d{1,2}\.\d{2}\s*[-–])/i.test(t.str)&&
-      !/^(?:К-|БД-|ЗУ-|Юр-)/i.test(t.str)&&!t.str.includes('НЕДЕЛЯ'))
+      !/^(?:К-|БД-|ЗУ-|Юр-)/i.test(t.str)&&!t.str.includes('НЕДЕЛЯ')&&
+      !/^(?:ПОНЕДЕЛЬНИК|ВТОРНИК|СРЕДА|ЧЕТВЕРГ|ПЯТНИЦА|СУББОТА)$/i.test(t.str))
      .filter(t=>!sourceMarkers.some(other=>other!==marker&&Math.abs(other.y-marker.y)<3&&
        Math.abs(other.x+other.width/2-(t.x+t.width/2))<Math.abs(sx-(t.x+t.width/2))))
      .sort((a,b)=>a.y-b.y||a.x-b.x);
