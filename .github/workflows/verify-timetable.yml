@@ -1,0 +1,45 @@
+name: Verify published timetable
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  adjacent-groups:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update -qq && sudo apt-get install -y poppler-utils
+      - run: node --experimental-strip-types --test tests/pdf-parsers.test.mjs
+      - run: node --experimental-strip-types scripts/check-schedule-repro.mjs
+        env:
+          IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - run: pnpm exec next build
+      - run: pnpm exec next start --hostname 127.0.0.1 --port 3018 > /tmp/imi-next.log 2>&1 &
+      - run: node scripts/check-preview.mjs
+        env:
+          IMI_SITE_URL: http://127.0.0.1:3018
+          IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - run: node scripts/check-mobile-ui.mjs
+      - name: Check protected Preview URL
+        run: node scripts/check-preview.mjs
+        continue-on-error: true
+        env:
+          IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: official-timetable
+          path: |
+            ${{ runner.temp }}/official-schedule.pdf
+            ${{ runner.temp }}/mobile-*.png
+          retention-days: 2
