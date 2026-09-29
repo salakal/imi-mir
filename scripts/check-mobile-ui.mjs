@@ -2,7 +2,7 @@
 // the rendered Monday cards. Uses the Chrome installed on GitHub's runner.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -88,6 +88,23 @@ try {
     const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(join(process.env.RUNNER_TEMP ?? tmpdir(), `mobile-${group}.png`), Buffer.from(screenshot.data, 'base64'));
     console.log(group, 'mobile schedule rendered:', monday.split('\n').filter(Boolean).slice(0, 13).join(' | '));
+  }
+  if (process.env.IMI_AUDIT_EXPECTATIONS) {
+    const expectations = JSON.parse(readFileSync(process.env.IMI_AUDIT_EXPECTATIONS));
+    for (const {group,institution,days} of expectations) {
+      await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`${institution}:${group}`)})`);
+      await send('Page.reload', {ignoreCache:true});
+      await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(group)})`), group);
+      const tab = await evaluate(`(() => {const t=[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.includes('Расписание'));if(!t)return null;t.scrollIntoView({block:'center'});const r=t.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`);
+      assert.ok(tab, `${group}: вкладка расписания отсутствует`);
+      await send('Input.dispatchMouseEvent',{type:'mousePressed',x:tab.x,y:tab.y,button:'left',clickCount:1});
+      await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:tab.x,y:tab.y,button:'left',clickCount:1});
+      const actual=await until(() => evaluate(`(() => {const cards=[...document.querySelectorAll('.day-card')];if(cards.length!==6)return null;return cards.map(c=>({count:c.querySelectorAll('.pair').length,empty:!!c.querySelector('.rest'),bad:[...c.querySelectorAll('.pair')].some(p=>!p.querySelector('.pair-body strong')?.textContent.trim()||!p.querySelector('.pair-body span:last-child')?.textContent.trim()||!p.querySelector('.room,.remote-badge')||/(?:^|\\s)(?:ауд|каб)\\.?\\s/i.test(p.querySelector('.pair-body strong')?.textContent+' '+p.querySelector('.pair-body span:last-child')?.textContent))}))})()`), `расписания ${group}`, 65000);
+      assert.deepEqual(actual.map(x=>x.count),days,`${group}: UI потерял пары или общую лекцию`);
+      assert.ok(actual.every((x,i)=>x.empty===(days[i]===0)&&!x.bad),`${group}: пустой день или поля пары неверны`);
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2'),`${group}: горизонтальная прокрутка на 390 px`);
+      console.log('UI verified',institution,group,days.join(','));
+    }
   }
 } finally {
   socket?.close();
