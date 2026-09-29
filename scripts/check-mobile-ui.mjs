@@ -92,9 +92,10 @@ try {
   if (process.env.IMI_AUDIT_EXPECTATIONS) {
     const expectations = JSON.parse(readFileSync(process.env.IMI_AUDIT_EXPECTATIONS));
     for (const {group,institution,days} of expectations) {
-      await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`${institution}:${group}`)})`);
+      const groupId = `${institution}:${group.toLocaleUpperCase('ru')}`;
+      await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(groupId)})`);
       await send('Page.reload', {ignoreCache:true});
-      await until(() => evaluate(`document.querySelector('.group-field select')?.value === ${JSON.stringify(`${institution}:${group}`)}`), `выбора группы ${group}`);
+      await until(() => evaluate(`document.querySelector('.group-field select')?.value === ${JSON.stringify(groupId)}`), `выбора группы ${group}`);
       const tab = await evaluate(`(() => {const t=[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.includes('Расписание'));if(!t)return null;t.scrollIntoView({block:'center'});const r=t.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`);
       assert.ok(tab, `${group}: вкладка расписания отсутствует`);
       await send('Input.dispatchMouseEvent',{type:'mousePressed',x:tab.x,y:tab.y,button:'left',clickCount:1});
