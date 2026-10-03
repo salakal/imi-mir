@@ -2,9 +2,9 @@ name: Verify published timetable
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   all-published-groups:
@@ -21,6 +21,7 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: sudo apt-get update -qq && sudo apt-get install -y poppler-utils
+      - run: pnpm lint
       - run: node --experimental-strip-types --test tests/pdf-parsers.test.mjs
       - run: node --experimental-strip-types scripts/audit-schedules.mjs
         env:
@@ -43,7 +44,7 @@ jobs:
         env:
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
       - name: Verify production HTTP and mobile schedules
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           node scripts/check-preview.mjs
           node scripts/check-mobile-ui.mjs
