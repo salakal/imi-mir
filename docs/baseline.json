@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "plan": "IMI One v5",
+  "step": 1,
+  "status": "PARTIAL",
+  "observedDate": "2026-10-03",
+  "timezone": "Europe/Samara",
+  "repository": {
+    "fullName": "salakal/imi-mir",
+    "visibilityAtAudit": "public",
+    "defaultBranch": "main",
+    "mainSha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "mainShortSha": "7332cc8",
+    "branchesAtAudit": [
+      "main",
+      "fix/global-schedule-cells",
+      "preview/initial-source"
+    ],
+    "openPullRequestsAtAudit": 0,
+    "sourceComplete": true
+  },
+  "production": {
+    "url": "https://imi-mir.vercel.app",
+    "vercelProject": "imi-mir",
+    "projectId": "prj_QEghLC2bAdkgAtVip3GJ2AKrLORV",
+    "deploymentId": "dpl_HooE3mbTcgspBFAvciXFnjEJeSnQ",
+    "sha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "state": "READY",
+    "createdAt": "2026-09-29T09:59:06Z"
+  },
+  "sources": {
+    "root": "https://disk.yandex.ru/d/KTpb1wS1l0-amA",
+    "collegeGroupsObserved": 29,
+    "facultyGroupsObserved": 18,
+    "totalGroupsObserved": 47,
+    "pdfFilesLastAudited": 10,
+    "auditDate": "2026-09-29",
+    "auditDays": 282,
+    "auditLessons": 785,
+    "auditMergedCommonCells": 70,
+    "sourceRoomUnspecified": 5
+  },
+  "checks": {
+    "githubActionsRunId": 36552675034,
+    "jobId": 109354359194,
+    "sha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "install": "PASS_2026-09-29",
+    "parserTests": "PASS_2026-09-29",
+    "fullAudit": "PASS_2026-09-29",
+    "build": "PASS_2026-09-29",
+    "httpSmoke": "PASS_2026-09-29",
+    "mobileChrome": "PASS_2026-09-29",
+    "browserProductionHome": "PASS_2026-10-03",
+    "browserProductionSchedule": "PASS_2026-10-03",
+    "browserProductionSession": "PASS_2026-10-03",
+    "browserProductionGroups": "PASS_2026-10-03",
+    "studentSearch": "PASS_2026-10-03",
+    "personalDebts": "BLOCKED_AUTO_REVIEW",
+    "iphoneSafari": "NOT_VERIFIED",
+    "currentPdfInventory": "NOT_VERIFIED"
+  },
+  "primaryEndpoints": [
+    "/api/catalog",
+    "/api/manifest",
+    "/api/schedule-sources",
+    "/api/session-sources",
+    "/api/pdf"
+  ],
+  "knownLimitations": [
+    "No develop branch or main protection at audit; step 2",
+    "Repository AGENTS.md differs from attached v5 rules",
+    "Hardcoded Vercel addresses exist; step 5",
+    "Source inventory audit is from September 29, not October 3",
+    "Personal debt card access blocked by automatic review",
+    "Full iPhone Safari baseline smoke pending"
+  ]
+}
