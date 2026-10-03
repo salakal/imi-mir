@@ -2,9 +2,9 @@ name: Verify published timetable
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   all-published-groups:
@@ -43,7 +43,7 @@ jobs:
         env:
           IMI_VERIFY_ARTIFACT: ${{ runner.temp }}/official-schedule.pdf
       - name: Verify production HTTP and mobile schedules
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           node scripts/check-preview.mjs
           node scripts/check-mobile-ui.mjs
