@@ -63,10 +63,11 @@
     "experimentalRecoveryAuditRunId": 37116107832,
     "currentAuditPdfFiles": 10,
     "currentAuditGroups": 47,
-    "currentAuditRootCause": "A subject at y=95.2 lies above measured row top y=99.2 while its teacher/room are below; parser throws on a teacher-led cell. A provisional recovery exposed 12 missing, 9 subject, and 22 unexpected/duplicate discrepancies across current PDFs and was reverted.",
+    "currentAuditRootCause": "Published PDF contains a merged cell spanning time-row and group-column boundaries. Subject Mathematics appears above computed row top y=99.2; teacher/room below. Existing parser throws. Provisional patch reverted after full audit found 12 missing, 9 subject errors, and 22 unexpected/duplicate lessons.",
     "teacherSearch": "PASS_2026-10-03",
     "facultySchedule": "PASS_2026-10-03",
-    "groupRefresh": "PASS_2026-10-03"
+    "groupRefresh": "PASS_2026-10-03",
+    "productionAffectedGroup": "FAIL_2026-10-03: K-РУ-19 week 05.10–10.10 schedule unavailable with parser error"
   },
   "primaryEndpoints": [
     "/api/catalog",
