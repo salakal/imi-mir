@@ -28,6 +28,11 @@ async function officialPdf(path){
   if(bytes.subarray(0,4).toString()!=='%PDF')throw new Error(`${path}: response is not PDF`);
   return bytes;
 }
+// Temporary baseline diagnostic: retain every current source even if parsing fails.
+if (!offline) for (const [i, source] of sources.entries()) {
+  const file = join(pdfDir,`${String(i).padStart(2,'0')}.pdf`);
+  if (!existsSync(file)) writeFileSync(file, await officialPdf(source.path));
+}
 let checked=0, missing=0, rooms=0, unexpected=0, merged=0, sourceMissingRoom=0, unowned=0, subjects=0, formats=0;
 const cases=[];
 const uiExpectations=[];
