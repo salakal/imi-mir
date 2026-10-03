@@ -11,7 +11,7 @@
 ## Порядок
 
 1. Сверить текущий `develop`, создать отдельную ветку, внести только изменения текущего шага и открыть PR в `develop` по шаблону.
-2. Дождаться успешного GitHub Actions `Verify published timetable / all-published-groups` и успешного статуса `Vercel` для SHA PR. CI включает install, lint, unit/parser tests, существующий аудит официальных PDF, build, локальный HTTP и мобильный smoke. Проваленный check блокирует готовность PR. Ссылка на Preview и SHA фиксируются в PR.
+2. Дождаться успешного GitHub Actions `Verify published timetable / all-published-groups` и успешного статуса `Vercel` для SHA PR. CI включает install, unit/parser tests, существующий аудит официальных PDF, build, локальный HTTP и мобильный smoke. `pnpm lint` пока не является required check: пробный прогон на неизменённом baseline завершился 15 ошибками и 1451 предупреждением (включая существующие React effects и сгенерированный код). Исправление линтера требует отдельного согласованного изменения без скрытого рефакторинга шага 2. Проваленный check блокирует готовность PR. Ссылка на Preview и SHA фиксируются в PR.
 3. Проверить Vercel Preview по критериям шага, включая мобильный сценарий и источники данных. Preview не должен изменять `imi-mir.vercel.app` и не должен зависеть от production-only секретов.
 4. После review и gate объединить PR в `develop`. Проверить CI для integration commit. Начиная с шага 3, проверить отдельный Vercel DEV/STAGING на этом commit.
 5. После шага 19 закрепить неизменяемый release candidate. На шаге 20 через контролируемый PR продвинуть ровно его в `main`, дождаться Vercel Production и выполнить smoke/regression. При критическом сбое откатить Production на известный предыдущий deployment, исправление снова провести через DEV.
