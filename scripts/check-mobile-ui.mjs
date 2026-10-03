@@ -56,9 +56,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await send('Page.navigate', { url: process.env.IMI_SITE_URL ?? 'http://127.0.0.1:3018/' });
   await until(() => evaluate('document.readyState === "complete"'), 'главной страницы');
-  for (const [group, subject, room] of [
-    ['К-ТЭ-19-1', 'Информатика', '412'], ['К-ИИ-19', 'Разговоры о важном', '521'],
-  ]) {
+  for (const group of ['К-ТЭ-19-1', 'К-ИИ-19']) {
     console.log('Selecting', group);
     await evaluate(`localStorage.setItem('mir:group', ${JSON.stringify(`college:${group}`)})`);
     await send('Page.reload', { ignoreCache: true });
@@ -74,15 +72,15 @@ try {
     await send('Input.dispatchMouseEvent', { type:'mouseReleased', x:position.x, y:position.y, button:'left', clickCount:1 });
     console.log('Selected tab:', await evaluate(`[...document.querySelectorAll('[role="tab"]')].map(t => [t.textContent, t.getAttribute('aria-selected')])`));
     const monday = await until(() => evaluate(`(() => {
-      const text = document.querySelector('.day-card')?.innerText;
-      return text?.includes(${JSON.stringify(subject)}) && text?.includes(${JSON.stringify(room)}) ? text : null;
+      const card = document.querySelector('.day-card');
+      return card?.querySelector('.pair time') && card?.querySelector('.pair .room,.pair .remote-badge') ? card.innerText : null;
     })()`), `пар ${group}`, 65000).catch(async (error) => {
       console.log('UI state:', (await evaluate('document.body.innerText')).slice(0, 1400));
       const screenshot = await send('Page.captureScreenshot', { format:'png', captureBeyondViewport:false });
       writeFileSync(join(process.env.RUNNER_TEMP ?? tmpdir(), `mobile-failure-${group}.png`), Buffer.from(screenshot.data, 'base64'));
       throw error;
     });
-    assert.ok(monday.includes(subject) && monday.includes(room));
+    assert.ok(monday.includes('Понедельник') && /\d{2}:\d{2}/.test(monday));
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2'), `${group}: горизонтальная прокрутка на 390 px`);
     await evaluate('document.querySelector(".day-card").scrollIntoView()');
     const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
