@@ -57,7 +57,16 @@
     "studentSearch": "PASS_2026-10-03",
     "personalDebts": "BLOCKED_AUTO_REVIEW",
     "iphoneSafari": "NOT_VERIFIED",
-    "currentPdfInventory": "NOT_VERIFIED"
+    "currentPdfInventory": "NOT_VERIFIED",
+    "currentFullAudit": "FAIL_2026-10-03",
+    "currentAuditRunId": 37115812451,
+    "experimentalRecoveryAuditRunId": 37116107832,
+    "currentAuditPdfFiles": 10,
+    "currentAuditGroups": 47,
+    "currentAuditRootCause": "A subject at y=95.2 lies above measured row top y=99.2 while its teacher/room are below; parser throws on a teacher-led cell. A provisional recovery exposed 12 missing, 9 subject, and 22 unexpected/duplicate discrepancies across current PDFs and was reverted.",
+    "teacherSearch": "PASS_2026-10-03",
+    "facultySchedule": "PASS_2026-10-03",
+    "groupRefresh": "PASS_2026-10-03"
   },
   "primaryEndpoints": [
     "/api/catalog",
@@ -67,6 +76,7 @@
     "/api/pdf"
   ],
   "knownLimitations": [
+    "Critical blocker: current official-source audit fails; no stable baseline until generic parser/data correction and full clean audit",
     "No develop branch or main protection at audit; step 2",
     "Repository AGENTS.md differs from attached v5 rules",
     "Hardcoded Vercel addresses exist; step 5",
