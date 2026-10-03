@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { type Day, type Debt, type Student, parseDebts, parseSchedule } from '@/lib/pdf-data';
 import { type Group, type Institution, INSTITUTIONS, ROOT } from '@/lib/groups';
 import { getCatalog, getManifest, getPdf, type Catalog, type Manifest } from '@/lib/yandex';
+import { displayLessonLocation } from '@/lib/display-location';
 import TeacherPanel from '@/components/TeacherPanel';
 import SessionPanel from '@/components/SessionPanel';
 
@@ -163,7 +164,7 @@ export default function Home() {
             {manifest?.schedule && <div className="source-line">PDF изменён: {stamp(manifest.schedule.modified)} · Проверен: {stamp(scheduleCheckedAt)} · <a href={ROOT} target="_blank" rel="noreferrer">Открыть источник <ArrowUpRight size={13} /></a></div>}
             {busy && <div className="panel state">Проверяю расписание…</div>}
             {!busy && scheduleError && <div className="panel state error"><strong>Расписание сейчас недоступно</strong><p>{scheduleError}. Другая неделя не подставляется автоматически.</p><button onClick={() => void load()}>Попробовать снова</button></div>}
-            {!busy && !scheduleError && <div className="day-list">{days.map((day, index) => <section className={`day-card ${day.off ? 'day-off' : ''}`} key={day.label}><div className="day-title"><h3>{day.label}</h3><span>{dateOf(index)}</span></div>{day.off ? <p className="rest">Выходной · пар нет</p> : day.pairs.length ? <div className="pairs">{day.pairs.map((p, i) => <div className="pair" key={`${p.time}:${p.subgroup ?? 'all'}:${i}`}><time>{p.time}</time><div className="pair-body">{p.subgroup && <span className="group-badge">Подгруппа {p.subgroup}</span>}<strong>{p.subject}</strong><span>{p.teacher}</span></div><span className={p.remote ? 'remote-badge' : 'room'}>{p.remote ? <><Wifi size={14} /> Дистант</> : p.room}</span></div>)}</div> : <p className="rest">Пары не указаны</p>}</section>)}</div>}
+            {!busy && !scheduleError && <div className="day-list">{days.map((day, index) => <section className={`day-card ${day.off ? 'day-off' : ''}`} key={day.label}><div className="day-title"><h3>{day.label}</h3><span>{dateOf(index)}</span></div>{day.off ? <p className="rest">Выходной · пар нет</p> : day.pairs.length ? <div className="pairs">{day.pairs.map((p, i) => <div className="pair" key={`${p.time}:${p.subgroup ?? 'all'}:${i}`}><time>{p.time}</time><div className="pair-body">{p.subgroup && <span className="group-badge">Подгруппа {p.subgroup}</span>}<strong>{p.subject}</strong><span>{p.teacher}</span></div><span className={p.remote ? 'remote-badge' : 'room'}>{p.remote ? <><Wifi size={14} /> Дистант</> : displayLessonLocation(p.room)}</span></div>)}</div> : <p className="rest">Пары не указаны</p>}</section>)}</div>}
           </TabsContent>
           <TabsContent value="session">{tab === 'session' && group && <SessionPanel group={group} groups={catalog.groups} onGroup={selectGroup} refreshKey={refreshCount} />}</TabsContent>
           <TabsContent value="teachers">{tab === 'teachers' && <TeacherPanel weeks={[...new Map([...catalog.weeks.college, ...catalog.weeks.faculty].map((w) => [w.name, w])).values()]} refreshKey={refreshCount} />}</TabsContent>

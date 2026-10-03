@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPdf } from '@/lib/yandex';
 import { parseSchedules } from '@/lib/pdf-data';
+import { displayLessonLocation } from '@/lib/display-location';
 import { buildTeachers, futureLesson, matchesTeacher, type ScheduleSource, type Teacher } from '@/lib/teachers';
 import type { Week } from '@/lib/yandex';
 
@@ -9,7 +10,7 @@ const cache = new Map<string, Teacher[]>();
 function lessonLocation(room: string, remote: boolean) {
   if (remote) return 'Дистант';
   if (room === '—') return 'Место не указано';
-  return /^\d/.test(room) ? `каб. ${room}` : room;
+  return /^\d/.test(room) ? `каб. ${room}` : displayLessonLocation(room);
 }
 export default function TeacherPanel({ weeks, refreshKey }: { weeks: Week[]; refreshKey: number }) {
   const [week, setWeek] = useState('');

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { displayLessonLocation } from '../lib/display-location.ts';
 import assert from 'node:assert/strict';
 import { cellsForGroup, inferMissingColumnRules, rowBoundary, scheduleFromPage, splitLesson } from '../lib/pdf-data.ts';
 
@@ -16,6 +17,16 @@ test('аудитория перед дисциплиной не становит
     subject: 'Обществознание', teacher: 'Павлов А.А', room: '119', remote: false,
   });
   assert.equal(splitLesson('Обществознание преп Павлов А.А ауд 408')?.room, '408');
+});
+
+test('стадион Локомотив показывается кратко без изменения исходного места', () => {
+  const source = 'Агибалова 7А, стадион Локомотив баскетбольный зал';
+  const pair = splitLesson(`Физическая культура преп Рудакова И.А ${source}`);
+  assert.equal(pair?.room, source);
+  assert.equal(displayLessonLocation(pair.room), 'Локомотив');
+  assert.equal(displayLessonLocation('СТАДИОН ЛОКОМОТИВ'), 'Локомотив');
+  assert.equal(displayLessonLocation('стадион Динамо'), 'стадион Динамо');
+  assert.equal(displayLessonLocation('521'), '521');
 });
 
 test('спортивный объект и адрес — это место пары, не ФИО', () => {
