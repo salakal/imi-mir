@@ -2,31 +2,38 @@
   "schemaVersion": 1,
   "plan": "IMI One v5",
   "step": 1,
-  "status": "VERIFIED_PREVIEW_PENDING_PRODUCTION",
+  "status": "DONE",
   "observedDate": "2026-10-03",
   "timezone": "Europe/Samara",
   "repository": {
     "fullName": "salakal/imi-mir",
     "visibilityAtAudit": "public",
     "defaultBranch": "main",
-    "mainSha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
-    "mainShortSha": "7332cc8",
+    "mainSha": "3143b13b227bb3e202610594fb61ea0a48fcb46b",
+    "mainShortSha": "3143b13",
     "branchesAtAudit": [
       "main",
       "fix/global-schedule-cells",
       "preview/initial-source"
     ],
     "openPullRequestsAtAudit": 0,
-    "sourceComplete": true
+    "sourceComplete": true,
+    "initialMainSha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "baselineCodeSha": "3143b13b227bb3e202610594fb61ea0a48fcb46b",
+    "mergedPullRequest": 3
   },
   "production": {
     "url": "https://imi-mir.vercel.app",
     "vercelProject": "imi-mir",
     "projectId": "prj_QEghLC2bAdkgAtVip3GJ2AKrLORV",
-    "deploymentId": "dpl_HooE3mbTcgspBFAvciXFnjEJeSnQ",
-    "sha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "deploymentId": "dpl_9P2ANtWwGyHcuMVVw1gbs7QGAJSP",
+    "sha": "3143b13b227bb3e202610594fb61ea0a48fcb46b",
     "state": "READY",
-    "createdAt": "2026-09-29T09:59:06Z"
+    "createdAt": "2026-10-03T11:00:34Z",
+    "previousDeploymentId": "dpl_HooE3mbTcgspBFAvciXFnjEJeSnQ",
+    "previousSha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
+    "readyAt": "2026-10-03T11:01:17Z",
+    "snapshotNote": "Document-only commit can create a later deployment with identical application code."
   },
   "sources": {
     "root": "https://disk.yandex.ru/d/KTpb1wS1l0-amA",
@@ -41,15 +48,15 @@
     "sourceRoomUnspecified": 1
   },
   "checks": {
-    "githubActionsRunId": 36552675034,
+    "githubActionsRunId": 37118257852,
     "jobId": 109354359194,
-    "sha": "7332cc81759c99abd6a56763c7c2ee464e9d636e",
-    "install": "PASS_2026-09-29",
-    "parserTests": "PASS_2026-09-29",
-    "fullAudit": "PASS_2026-09-29",
-    "build": "PASS_2026-09-29",
-    "httpSmoke": "PASS_2026-09-29",
-    "mobileChrome": "PASS_2026-09-29",
+    "sha": "3143b13b227bb3e202610594fb61ea0a48fcb46b",
+    "install": "PASS_2026-10-03",
+    "parserTests": "PASS_2026-10-03",
+    "fullAudit": "PASS_2026-10-03",
+    "build": "PASS_2026-10-03",
+    "httpSmoke": "PASS_2026-10-03",
+    "mobileChrome": "PASS_47_GROUPS_2026-10-03",
     "browserProductionHome": "PASS_2026-10-03",
     "browserProductionSchedule": "PASS_2026-10-03",
     "browserProductionSession": "PASS_2026-10-03",
@@ -59,7 +66,7 @@
     "iphoneSafari": "NOT_VERIFIED",
     "currentPdfInventory": "NOT_VERIFIED",
     "currentFullAudit": "PASS_2026-10-03",
-    "currentAuditRunId": 37115812451,
+    "currentAuditRunId": 37118257852,
     "experimentalRecoveryAuditRunId": 37116107832,
     "currentAuditPdfFiles": 10,
     "currentAuditGroups": 47,
@@ -67,13 +74,14 @@
     "teacherSearch": "PASS_2026-10-03",
     "facultySchedule": "PASS_2026-10-03",
     "groupRefresh": "PASS_2026-10-03",
-    "productionAffectedGroup": "FAIL_2026-10-03: K-РУ-19 week 05.10–10.10 schedule unavailable with parser error",
+    "productionAffectedGroup": "PASS_2026-10-03: K-РУ-19 05.10–10.10 08:15 Mathematics",
     "currentAuditDays": 282,
     "currentAuditLessons": 797,
     "currentAuditErrors": 0,
     "previewDeploymentId": "dpl_BuBThyEHGm5J8Moi3djRc8VnvcK2",
     "previewSha": "488bb40941f0604aa13178abbcfaa81c85dc1042",
-    "previewAffectedGroup": "PASS_2026-10-03"
+    "previewAffectedGroup": "PASS_2026-10-03",
+    "productionHttpMobile": "PASS_2026-10-03"
   },
   "primaryEndpoints": [
     "/api/catalog",
@@ -87,8 +95,6 @@
     "Repository AGENTS.md differs from attached v5 rules",
     "Hardcoded Vercel addresses exist; step 5",
     "Personal debt card access blocked by automatic review",
-    "Full iPhone Safari baseline smoke pending",
-    "Production still runs previous SHA until baseline hotfix release and smoke",
-    "Full mobile CI pending final commit"
+    "Full iPhone Safari baseline smoke pending"
   ]
 }
