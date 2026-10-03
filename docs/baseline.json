@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "plan": "IMI One v5",
   "step": 1,
-  "status": "PARTIAL",
+  "status": "VERIFIED_PREVIEW_PENDING_PRODUCTION",
   "observedDate": "2026-10-03",
   "timezone": "Europe/Samara",
   "repository": {
@@ -34,11 +34,11 @@
     "facultyGroupsObserved": 18,
     "totalGroupsObserved": 47,
     "pdfFilesLastAudited": 10,
-    "auditDate": "2026-09-29",
+    "auditDate": "2026-10-03",
     "auditDays": 282,
-    "auditLessons": 785,
-    "auditMergedCommonCells": 70,
-    "sourceRoomUnspecified": 5
+    "auditLessons": 797,
+    "auditMergedCommonCells": 68,
+    "sourceRoomUnspecified": 1
   },
   "checks": {
     "githubActionsRunId": 36552675034,
@@ -58,16 +58,22 @@
     "personalDebts": "BLOCKED_AUTO_REVIEW",
     "iphoneSafari": "NOT_VERIFIED",
     "currentPdfInventory": "NOT_VERIFIED",
-    "currentFullAudit": "FAIL_2026-10-03",
+    "currentFullAudit": "PASS_2026-10-03",
     "currentAuditRunId": 37115812451,
     "experimentalRecoveryAuditRunId": 37116107832,
     "currentAuditPdfFiles": 10,
     "currentAuditGroups": 47,
-    "currentAuditRootCause": "Published PDF contains a merged cell spanning time-row and group-column boundaries. Subject Mathematics appears above computed row top y=99.2; teacher/room below. Existing parser throws. Provisional patch reverted after full audit found 12 missing, 9 subject errors, and 22 unexpected/duplicate lessons.",
+    "currentAuditRootCause": "Common PDF cell spans nominal 9.00 row; title lies above computed boundary while teacher/room below. Parser recovery and source-cell boundary audit now agree with visible PDF.",
     "teacherSearch": "PASS_2026-10-03",
     "facultySchedule": "PASS_2026-10-03",
     "groupRefresh": "PASS_2026-10-03",
-    "productionAffectedGroup": "FAIL_2026-10-03: K-РУ-19 week 05.10–10.10 schedule unavailable with parser error"
+    "productionAffectedGroup": "FAIL_2026-10-03: K-РУ-19 week 05.10–10.10 schedule unavailable with parser error",
+    "currentAuditDays": 282,
+    "currentAuditLessons": 797,
+    "currentAuditErrors": 0,
+    "previewDeploymentId": "dpl_BuBThyEHGm5J8Moi3djRc8VnvcK2",
+    "previewSha": "488bb40941f0604aa13178abbcfaa81c85dc1042",
+    "previewAffectedGroup": "PASS_2026-10-03"
   },
   "primaryEndpoints": [
     "/api/catalog",
@@ -77,12 +83,12 @@
     "/api/pdf"
   ],
   "knownLimitations": [
-    "Critical blocker: current official-source audit fails; no stable baseline until generic parser/data correction and full clean audit",
     "No develop branch or main protection at audit; step 2",
     "Repository AGENTS.md differs from attached v5 rules",
     "Hardcoded Vercel addresses exist; step 5",
-    "Source inventory audit is from September 29, not October 3",
     "Personal debt card access blocked by automatic review",
-    "Full iPhone Safari baseline smoke pending"
+    "Full iPhone Safari baseline smoke pending",
+    "Production still runs previous SHA until baseline hotfix release and smoke",
+    "Full mobile CI pending final commit"
   ]
 }
