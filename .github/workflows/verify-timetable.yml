@@ -57,4 +57,5 @@ jobs:
           path: |
             ${{ runner.temp }}/official-schedule.pdf
             ${{ runner.temp }}/mobile-*.png
+            /tmp/imi-schedule-audit/*.pdf
           retention-days: 2
