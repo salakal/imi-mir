@@ -518,7 +518,7 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
       for (const { left, right, subgroup } of cells) {
         let cell;
         try { cell = parseCell(items, left, right, cellTop, cellBottom); }
-        catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} ${(error as Error).message}`); }
+        catch (error) { const nearby = items.filter((t) => !t.rot && t.x + t.width / 2 > left && t.x + t.width / 2 < right && t.y > cellTop - 22 && t.y < cellBottom + 8).map((t) => `${t.y.toFixed(1)}:${t.str}`).join(' | '); throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} nearby=${nearby} ${(error as Error).message}`); }
         if (!cell) continue;
         const { timeHint, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
