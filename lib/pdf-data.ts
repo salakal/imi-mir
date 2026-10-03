@@ -415,18 +415,7 @@ function parseCell(source: Text[], left: number, right: number, top: number, bot
     t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
-  let lesson = splitLesson(value);
-  // Some published PDFs place the subject glyphs a few points above the
-  // measured row stroke, while teacher and room remain inside the row.
-  // Recover only a teacher-led cell and only from subject text immediately
-  // above its top edge in the same measured column.
-  if (!lesson && /^преп\s*\.?/i.test(value)) {
-    const preceding = source.filter((t) => !t.rot && t.y > top - 6 && t.y <= top + 0.1 &&
-      t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
-      .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str).join(' ').trim();
-    if (preceding && !/(?:преп|ауд|каб)\s*\.?/i.test(preceding))
-      lesson = splitLesson(`${preceding} ${value}`);
-  }
+  const lesson = splitLesson(value);
   if (!lesson && /преп\s*\.?/i.test(value))
     throw new Error(`Строки расписания смешаны: ${value.slice(0, 140)}`);
   const start = value.match(/^(\d{1,2})\.(\d{2})\s+(?=[А-ЯЁ])/i);
