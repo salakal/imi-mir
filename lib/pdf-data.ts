@@ -415,7 +415,18 @@ function parseCell(source: Text[], left: number, right: number, top: number, bot
     t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
-  const lesson = splitLesson(value);
+  let lesson = splitLesson(value);
+  // Some published PDFs place the subject glyphs a few points above the
+  // measured row stroke, while teacher and room remain inside the row.
+  // Recover only a teacher-led cell and only from subject text immediately
+  // above its top edge in the same measured column.
+  if (!lesson && /^преп\s*\.?/i.test(value)) {
+    const preceding = source.filter((t) => !t.rot && t.y > top - 6 && t.y <= top + 0.1 &&
+      t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
+      .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str).join(' ').trim();
+    if (preceding && !/(?:преп|ауд|каб)\s*\.?/i.test(preceding))
+      lesson = splitLesson(`${preceding} ${value}`);
+  }
   if (!lesson && /преп\s*\.?/i.test(value))
     throw new Error(`Строки расписания смешаны: ${value.slice(0, 140)}`);
   const start = value.match(/^(\d{1,2})\.(\d{2})\s+(?=[А-ЯЁ])/i);
@@ -518,7 +529,7 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
       for (const { left, right, subgroup } of cells) {
         let cell;
         try { cell = parseCell(items, left, right, cellTop, cellBottom); }
-        catch (error) { const nearby = items.filter((t) => !t.rot && t.x + t.width / 2 > left && t.x + t.width / 2 < right && t.y > cellTop - 22 && t.y < cellBottom + 8).map((t) => `${t.y.toFixed(1)}:${t.str}`).join(' | '); throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} nearby=${nearby} ${(error as Error).message}`); }
+        catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} ${(error as Error).message}`); }
         if (!cell) continue;
         const { timeHint, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
