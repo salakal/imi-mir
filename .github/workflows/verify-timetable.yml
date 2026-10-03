@@ -57,4 +57,13 @@ jobs:
           path: |
             ${{ runner.temp }}/official-schedule.pdf
             ${{ runner.temp }}/mobile-*.png
+            /tmp/imi-schedule-audit/*.pdf
+            app/
+            lib/
+            scripts/
+            tests/
+            package.json
+            pnpm-lock.yaml
+            next.config.*
+            tsconfig.json
           retention-days: 2
