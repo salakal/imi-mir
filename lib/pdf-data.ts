@@ -410,16 +410,25 @@ export function splitLesson(value: string): Omit<Pair, "time"> | null {
 }
 
 function parseCell(source: Text[], left: number, right: number, top: number, bottom: number,
-  extendLeft = 0, extendRight = 0): (Omit<Pair, "time"> & { timeHint?: string }) | null {
+  extendLeft = 0, extendRight = 0): (Omit<Pair, "time"> & { timeHint?: string; previousRow?: boolean }) | null {
   const strings = source.filter((t) => !t.rot && t.y > top + 0.1 && t.y < bottom - 0.2 &&
     t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
     .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str);
   const value = strings.join(" ").replace(/\s+/g, " ").trim();
-  const lesson = splitLesson(value);
+  let lesson = splitLesson(value);
+  let carriedFromPrevious = false;
+  if (!lesson && /^преп\s*\.?/i.test(value)) {
+    const preceding = source.filter((t) => !t.rot && t.y > top - 6 && t.y <= top + 0.1 &&
+      t.x + t.width / 2 > left + 1 - extendLeft && t.x + t.width / 2 < right - 1 + extendRight)
+      .sort((a, b) => a.y - b.y || a.x - b.x).map((t) => t.str).join(' ').trim();
+    if (preceding && !/(?:преп|ауд|каб)\s*\.?/i.test(preceding))
+      { lesson = splitLesson(`${preceding} ${value}`); carriedFromPrevious = !!lesson; }
+  }
   if (!lesson && /преп\s*\.?/i.test(value))
     throw new Error(`Строки расписания смешаны: ${value.slice(0, 140)}`);
   const start = value.match(/^(\d{1,2})\.(\d{2})\s+(?=[А-ЯЁ])/i);
-  return lesson && start ? { ...lesson, timeHint: `${start[1].padStart(2, '0')}:${start[2]}` } : lesson;
+  return lesson && start ? { ...lesson, timeHint: `${start[1].padStart(2, '0')}:${start[2]}` } :
+    lesson && carriedFromPrevious ? { ...lesson, previousRow: true } : lesson;
 }
 
 export async function parseSchedule(buffer: ArrayBuffer, group: string, sample?: (x: number, y: number) => number[]): Promise<Day[]> {
@@ -520,10 +529,11 @@ export function scheduleFromPage(page: PDFPageProxy, items: Text[], color: (x: n
         try { cell = parseCell(items, left, right, cellTop, cellBottom); }
         catch (error) { throw new Error(`${group} ${WEEKDAYS[day]} ${index} cell=${left}:${right} y=${cellTop}:${cellBottom} rules=${resolvedRules.join(',')} ${(error as Error).message}`); }
         if (!cell) continue;
-        const { timeHint, ...parsed } = cell;
+        const { timeHint, previousRow, ...parsed } = cell;
         if (!parsed.remote && parsed.room === '—')
           throw new Error(`Не удалось определить кабинет: ${group}, ${WEEKDAYS[day]}, ${pairTime(anchors[index], items, TIMES[index])}: ${parsed.subject}`);
-        pairs.push({ ...parsed, time: timeHint ?? pairTime(anchors[index], items, TIMES[index]),
+        pairs.push({ ...parsed, time: previousRow && previous ? pairTime(previous, items, TIMES[index-1]) :
+            timeHint ?? pairTime(anchors[index], items, TIMES[index]),
           ...(subgroup ? { subgroup } : {}) });
       }
       }

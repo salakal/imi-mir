@@ -62,7 +62,16 @@ for(const [i,s] of sources.entries()){
    const sx=marker.x+marker.width/2;
    const near=items.filter(t=>t.y<marker.y&&t.y>marker.y-9&&Math.abs(t.x+t.width/2-sx)<65&&!/^преп/i.test(t.str)).sort((a,b)=>b.y-a.y||Math.abs(a.x+a.width/2-sx)-Math.abs(b.x+b.width/2-sx));
    const hint=near.find(t=>/^\d{1,2}\.\d{2}\s+[А-ЯЁ]/i.test(t.str))?.str.match(/^(\d{1,2})\.(\d{2})/);
-   const expectedTime=hint?`${hint[1].padStart(2,'0')}:${hint[2]}`:time;
+   // Read the actual cell top at the marker, including cells spanning a
+   // nominal time row. The time text itself can sit above or below the teacher.
+   let cellTop=separators[day-1]??headers[0].y+6;
+   for(let yi=Math.round((cellTop+2)*2);yi<Math.round((marker.y-3)*2);yi++){
+     const yy=yi/2;
+     if([-12,-8,-4,0,4,8,12].filter(dx=>Math.max(...rgb(sx+dx,yy))<85).length>=6)cellTop=yy;
+   }
+   const cellAnchor=anchors[day].filter(a=>a.y>cellTop+1).at(0);
+   const cm=cellAnchor?.str.match(/^(\d{1,2})\.(\d{2})/);
+   const expectedTime=hint?`${hint[1].padStart(2,'0')}:${hint[2]}`:cm?`${cm[1].padStart(2,'0')}:${cm[2]}`:time;
    const roomItem=items.filter(t=>t.y>marker.y+1&&t.y<marker.y+10&&Math.abs(t.x+t.width/2-sx)<45&&/(?:ауд|каб)/i.test(t.str)).sort((a,b)=>Math.abs(a.y-marker.y)-Math.abs(b.y-marker.y))[0];
    const room=roomItem?.str.match(/(?:ауд|каб)\.?\s*(\d+[а-яёa-z]?)/i)?.[1];
    const remoteSource=items.some(t=>Math.abs(t.x+t.width/2-sx)<60&&t.y>marker.y-5&&t.y<marker.y+12&&/дистанционно|дистант|онлайн/i.test(t.str));
@@ -74,6 +83,13 @@ for(const [i,s] of sources.entries()){
    let right=lines.find(x=>x>sx)??named.at(-1).cx+(named.at(-1).cx-named.at(-2).cx)/2;
    const simultaneous=sourceMarkers.filter(t=>Math.abs(t.y-marker.y)<2&&t!==marker&&t.x+t.width/2>left&&t.x+t.width/2<right);
    for(const other of simultaneous){let ox=other.x+other.width/2;if(Math.abs(ox-sx)<10)continue;let mid=(ox+sx)/2;if(ox<sx)left=Math.max(left,mid);else right=Math.min(right,mid)}
+   // A coloured merged cell may end with a fill edge instead of a black
+   // stroke. Constrain marker ownership to the matching background patch.
+   const bg=rgb(sx,marker.y-6);
+   if(bg[1]>bg[0]*1.15&&bg[1]>bg[2]*1.15){
+     let x=sx;while(x>left+1){const c=rgb(x,marker.y-6);if(!(c[1]>c[0]*1.15&&c[1]>c[2]*1.15))break;x-=.5}left=Math.max(left,x);
+     x=sx;while(x<right-1){const c=rgb(x,marker.y-6);if(!(c[1]>c[0]*1.15&&c[1]>c[2]*1.15))break;x+=.5}right=Math.min(right,x);
+   }
    const owners=named.filter((h,k)=>{
      const l=k? (named[k-1].cx+h.cx)/2:h.cx-(named[k+1].cx-h.cx)/2;
      const r=k<named.length-1?(h.cx+named[k+1].cx)/2:h.cx+(h.cx-named[k-1].cx)/2;
@@ -84,7 +100,7 @@ for(const [i,s] of sources.entries()){
    const subjectItems=items.filter(t=>t.y<marker.y-1&&t.y>marker.y-17&&
       t.x+t.width/2>left+1&&t.x+t.width/2<right-1&&
       Math.abs(t.x+t.width/2-sx)<Math.max(65,(right-left)*.65)&&
-      !/^(?:преп|ауд|каб|спорт\s*зал|стадион|подгруппа|\d{1,2}\.\d{2}\s*[-–])/i.test(t.str)&&
+      !/^(?:преп|ауд|каб|спорт\s*зал|стадион|баскетбольный зал|подгруппа|\d{1,2}\.\d{2}\s*[-–])/i.test(t.str)&&
       !/^(?:К-|БД-|ЗУ-|Юр-)/i.test(t.str)&&!t.str.includes('НЕДЕЛЯ')&&
       !/^(?:ПОНЕДЕЛЬНИК|ВТОРНИК|СРЕДА|ЧЕТВЕРГ|ПЯТНИЦА|СУББОТА)$/i.test(t.str))
      .filter(t=>!sourceMarkers.some(other=>other!==marker&&Math.abs(other.y-marker.y)<3&&

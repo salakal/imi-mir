@@ -157,3 +157,30 @@ test('семестры и три колонки объединённой таб�
     [6, 'Зачёт', 'Физическая культура'],
   ]);
 });
+
+test('предмет над строкой 9.00 и преподаватель под ней остаются парой 8.15', () => {
+  const items = [
+    {str: 'К-РУ-19', x: 88, y: 35, width: 60, rot: false},
+    {str: 'К-ТЭ-19-1', x: 255, y: 35, width: 80, rot: false},
+  ];
+  const add = (str, x, y, width = 70) => items.push({str, x, y, width, rot: false});
+  for (let day = 0; day < 6; day++) {
+    const shift = 150 * day;
+    for (const [label, y] of [['8.15-9.45', 80], ['9.55-11.25', 126],
+      ['11.50-13.20', 150], ['13.30-15.00', 174]])
+      add(label, 20, y + shift, 65);
+    if (day === 0) add('9.00', 20, 103, 35);
+  }
+  add('Математика', 255, 95, 80);
+  add('преп Акимова К.В', 255, 101, 85);
+  add('ауд 411', 260, 106, 55);
+  const sample = (x, y) => {
+    if ([190, 340, 490, 640, 790].some(line => Math.abs(y-line)<.25)) return [255, 240, 0];
+    if (Math.abs(y-92.5)<.25 && x<200) return [0, 0, 0];
+    if ([75.5, 122.5, 146.5, 170.5].some(line => Math.abs(y-line)<.25)) return [0, 0, 0];
+    return [255, 255, 255];
+  };
+  const monday = scheduleFromPage({view:[0,0,500,960]}, items, sample, 'К-ТЭ-19-1')[0].pairs;
+  assert.deepEqual(monday.map(p => [p.time, p.subject, p.teacher, p.room]),
+    [['08:15–09:45', 'Математика', 'Акимова К.В', '411']]);
+});
